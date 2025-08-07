@@ -1,0 +1,22 @@
+# 智能升学助手 - 项目依赖
+
+# Web服务器
+http-server==14.1.1
+
+# 开发工具
+python-dotenv==1.0.0
+
+# 日志记录
+loguru==0.7.2
+
+# 代码格式化
+black==23.12.1
+flake8==7.0.0
+
+# 测试框架
+pytest==7.4.4
+pytest-cov==4.1.0
+
+# 文档生成
+mkdocs==1.5.3
+mkdocs-material==9.4.8 
