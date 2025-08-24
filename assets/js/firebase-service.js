@@ -69,13 +69,38 @@ class FirebaseService {
      */
     async waitForFirebase() {
         let attempts = 0;
-        while (typeof firebase === 'undefined' && attempts < 50) {
+        console.log('⏳ Waiting for Firebase to load...');
+        
+        while (typeof firebase === 'undefined' && attempts < 100) {
             await new Promise(resolve => setTimeout(resolve, 100));
             attempts++;
+            
+            if (attempts % 10 === 0) {
+                console.log(`⏳ Still waiting for Firebase... (attempt ${attempts})`);
+            }
         }
 
         if (typeof firebase === 'undefined') {
+            console.error('❌ Firebase failed to load - checking script tags...');
+            const firebaseScripts = document.querySelectorAll('script[src*="firebase"]');
+            console.log('Firebase script tags found:', firebaseScripts.length);
             throw new Error('Firebase failed to load within timeout');
+        }
+        
+        console.log('✅ Firebase object detected');
+        
+        // Check if required Firebase services are available
+        const requiredServices = ['auth', 'firestore', 'storage', 'analytics'];
+        const missingServices = [];
+        
+        requiredServices.forEach(service => {
+            if (!firebase[service]) {
+                missingServices.push(service);
+            }
+        });
+        
+        if (missingServices.length > 0) {
+            console.warn('⚠️ Missing Firebase services:', missingServices);
         }
     }
 

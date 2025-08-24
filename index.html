@@ -2745,18 +2745,55 @@
         // Google login
         async function googleLogin() {
             try {
-                console.log('Initiating Google login...');
+                console.log('🔐 Initiating Google login...');
                 
+                // Check if Firebase service exists and is initialized
                 if (!window.firebaseService) {
-                    throw new Error('Firebase service not initialized');
+                    console.log('⚠️ Firebase service not found, attempting to initialize...');
+                    
+                    // Try to initialize Firebase service if it doesn't exist
+                    if (typeof FirebaseService !== 'undefined') {
+                        window.firebaseService = new FirebaseService();
+                        
+                        // Wait for initialization
+                        let attempts = 0;
+                        while (!window.firebaseService.isInitialized && attempts < 30) {
+                            await new Promise(resolve => setTimeout(resolve, 200));
+                            attempts++;
+                        }
+                        
+                        if (!window.firebaseService.isInitialized) {
+                            throw new Error('Firebase service failed to initialize within timeout');
+                        }
+                    } else {
+                        throw new Error('FirebaseService class not available');
+                    }
                 }
                 
+                if (!window.firebaseService.isInitialized) {
+                    throw new Error('Firebase service is not properly initialized');
+                }
+                
+                console.log('✅ Firebase service ready, proceeding with Google login...');
                 await window.firebaseService.signInWithGoogle();
-                // Firebase service will handle the UI transition automatically
                 
             } catch (error) {
-                console.error('Google登录失败:', error);
-                alert('Google登录失败，请重试：' + error.message);
+                console.error('❌ Google登录失败:', error);
+                
+                // Provide more specific error messages
+                let errorMessage = 'Google登录失败，请重试';
+                
+                if (error.message.includes('popup')) {
+                    errorMessage = '登录弹窗被阻止，请允许弹窗后重试';
+                } else if (error.message.includes('network')) {
+                    errorMessage = '网络连接问题，请检查网络后重试';
+                } else if (error.message.includes('timeout')) {
+                    errorMessage = 'Firebase服务加载超时，请刷新页面重试';
+                } else {
+                    errorMessage += '：' + error.message;
+                }
+                
+                alert(errorMessage);
             }
         }
 
@@ -3724,6 +3761,52 @@ ${uni.description}
                 console.error('AI服务初始化失败:', error);
             }
         });
+        // Check Firebase status and display info
+        function checkFirebaseStatus() {
+            console.log('🔍 Checking Firebase initialization status...');
+            
+            // Check if Firebase SDK is loaded
+            if (typeof firebase === 'undefined') {
+                console.error('❌ Firebase SDK not loaded');
+                return;
+            }
+            
+            console.log('✅ Firebase SDK loaded');
+            
+            // Check if config is available
+            if (!window.CONFIG?.firebase?.enabled) {
+                console.error('❌ Firebase config not available or disabled');
+                return;
+            }
+            
+            console.log('✅ Firebase config available');
+            
+            // Check if FirebaseService class is available
+            if (typeof FirebaseService === 'undefined') {
+                console.error('❌ FirebaseService class not loaded');
+                return;
+            }
+            
+            console.log('✅ FirebaseService class available');
+            
+            // Display status in console
+            setTimeout(() => {
+                if (window.firebaseService) {
+                    console.log('🔥 Firebase service status:', {
+                        initialized: window.firebaseService.isInitialized,
+                        auth: !!window.firebaseService.auth,
+                        db: !!window.firebaseService.db,
+                        storage: !!window.firebaseService.storage
+                    });
+                } else {
+                    console.log('⚠️ Firebase service not created yet');
+                }
+            }, 2000);
+        }
+        
+        // Check Firebase status after a short delay
+        setTimeout(checkFirebaseStatus, 1000);
+
     </script>
 </body>
 </html> 
