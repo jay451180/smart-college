@@ -3879,8 +3879,117 @@ ${uni.description}
             window.showNotificationMessage?.('Firebase服务初始化失败', 'error');
         });
         
+        // Test function to check if Google login button is clickable
+        function testGoogleLoginButton() {
+            console.log('🔍 Testing Google login button...');
+            
+            const googleBtn = document.querySelector('.btn-google');
+            if (!googleBtn) {
+                console.error('❌ Google login button not found');
+                return;
+            }
+            
+            console.log('✅ Google login button found:', googleBtn);
+            console.log('Button properties:', {
+                disabled: googleBtn.disabled,
+                display: window.getComputedStyle(googleBtn).display,
+                visibility: window.getComputedStyle(googleBtn).visibility,
+                pointerEvents: window.getComputedStyle(googleBtn).pointerEvents,
+                zIndex: window.getComputedStyle(googleBtn).zIndex,
+                onclick: !!googleBtn.onclick
+            });
+            
+            // Add a test click event
+            googleBtn.addEventListener('click', function(e) {
+                console.log('🖱️ Google login button clicked!', e);
+            });
+            
+            // Also add a mousedown event to test if it's receiving events
+            googleBtn.addEventListener('mousedown', function(e) {
+                console.log('👆 Mouse down on Google login button', e);
+            });
+        }
+        
+        // Make Google login button more robust
+        function ensureGoogleLoginWorks() {
+            const googleBtn = document.querySelector('.btn-google');
+            if (!googleBtn) {
+                console.error('❌ Google login button not found');
+                return;
+            }
+            
+            // Check for overlapping elements
+            const rect = googleBtn.getBoundingClientRect();
+            const elementAtPoint = document.elementFromPoint(
+                rect.left + rect.width / 2, 
+                rect.top + rect.height / 2
+            );
+            
+            console.log('🔍 Element at button center:', elementAtPoint);
+            console.log('🔍 Is element the button itself?', elementAtPoint === googleBtn);
+            
+            if (elementAtPoint !== googleBtn) {
+                console.warn('⚠️ Another element is covering the Google login button:', elementAtPoint);
+                
+                // Try to fix by increasing z-index
+                googleBtn.style.position = 'relative';
+                googleBtn.style.zIndex = '9999';
+            }
+            
+            // Remove any existing onclick handlers and add fresh one
+            googleBtn.removeAttribute('onclick');
+            
+            // Add new click event listener with higher priority
+            googleBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔐 Google login button clicked via event listener');
+                
+                try {
+                    await googleLogin();
+                } catch (error) {
+                    console.error('Google login error:', error);
+                }
+            }, true); // Use capture phase
+            
+            // Also add a manual click handler that can be triggered
+            googleBtn.manualClick = async function() {
+                console.log('🔐 Manual Google login triggered');
+                try {
+                    await googleLogin();
+                } catch (error) {
+                    console.error('Manual Google login error:', error);
+                }
+            };
+            
+            // Ensure button is fully interactive
+            googleBtn.style.pointerEvents = 'auto';
+            googleBtn.style.cursor = 'pointer';
+            googleBtn.disabled = false;
+            
+            console.log('✅ Google login button enhanced with z-index:', googleBtn.style.zIndex);
+        }
+        
+        // Add emergency manual trigger for Google login
+        function manualGoogleLogin() {
+            console.log('🚨 Emergency manual Google login triggered');
+            const googleBtn = document.querySelector('.btn-google');
+            if (googleBtn && googleBtn.manualClick) {
+                googleBtn.manualClick();
+            } else {
+                googleLogin();
+            }
+        }
+        
+        // Make manual trigger available globally
+        window.manualGoogleLogin = manualGoogleLogin;
+        
         // Check all services status after a short delay
-        setTimeout(checkServicesStatus, 1000);
+        setTimeout(() => {
+            checkServicesStatus();
+            testGoogleLoginButton();
+            ensureGoogleLoginWorks();
+        }, 1000);
 
     </script>
 </body>
