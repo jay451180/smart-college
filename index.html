@@ -14,6 +14,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
     
     <!-- Application Services -->
+    <script src="assets/js/ai-service.js"></script>
     <script src="assets/js/firebase-service.js"></script>
     <script src="assets/js/stripe-service.js"></script>
     <script src="assets/js/main.js"></script>
@@ -3761,51 +3762,77 @@ ${uni.description}
                 console.error('AI服务初始化失败:', error);
             }
         });
-        // Check Firebase status and display info
-        function checkFirebaseStatus() {
-            console.log('🔍 Checking Firebase initialization status...');
+        // Check all services status
+        function checkServicesStatus() {
+            console.log('🔍 Checking all services initialization status...');
             
-            // Check if Firebase SDK is loaded
+            // Check AI Service
+            if (typeof AIService === 'undefined') {
+                console.error('❌ AIService class not loaded');
+            } else {
+                console.log('✅ AIService class available');
+                if (window.aiService) {
+                    console.log('🤖 AI service status:', {
+                        initialized: window.aiService.isInitialized,
+                        hasApiKey: !!window.aiService.apiKey
+                    });
+                }
+            }
+            
+            // Check Firebase Service
             if (typeof firebase === 'undefined') {
                 console.error('❌ Firebase SDK not loaded');
-                return;
-            }
-            
-            console.log('✅ Firebase SDK loaded');
-            
-            // Check if config is available
-            if (!window.CONFIG?.firebase?.enabled) {
-                console.error('❌ Firebase config not available or disabled');
-                return;
-            }
-            
-            console.log('✅ Firebase config available');
-            
-            // Check if FirebaseService class is available
-            if (typeof FirebaseService === 'undefined') {
-                console.error('❌ FirebaseService class not loaded');
-                return;
-            }
-            
-            console.log('✅ FirebaseService class available');
-            
-            // Display status in console
-            setTimeout(() => {
-                if (window.firebaseService) {
-                    console.log('🔥 Firebase service status:', {
-                        initialized: window.firebaseService.isInitialized,
-                        auth: !!window.firebaseService.auth,
-                        db: !!window.firebaseService.db,
-                        storage: !!window.firebaseService.storage
-                    });
+            } else {
+                console.log('✅ Firebase SDK loaded');
+                
+                if (!window.CONFIG?.firebase?.enabled) {
+                    console.warn('⚠️ Firebase config not available or disabled');
                 } else {
-                    console.log('⚠️ Firebase service not created yet');
+                    console.log('✅ Firebase config available');
+                    
+                    if (typeof FirebaseService === 'undefined') {
+                        console.error('❌ FirebaseService class not loaded');
+                    } else {
+                        console.log('✅ FirebaseService class available');
+                        
+                        if (window.firebaseService) {
+                            console.log('🔥 Firebase service status:', {
+                                initialized: window.firebaseService.isInitialized,
+                                auth: !!window.firebaseService.auth,
+                                db: !!window.firebaseService.db,
+                                storage: !!window.firebaseService.storage
+                            });
+                        }
+                    }
                 }
+            }
+            
+            // Check Stripe Service
+            if (typeof StripeService === 'undefined') {
+                console.error('❌ StripeService class not loaded');
+            } else {
+                console.log('✅ StripeService class available');
+                if (window.stripeService) {
+                    console.log('💳 Stripe service status:', {
+                        initialized: window.stripeService.isInitialized
+                    });
+                }
+            }
+            
+            // Overall status
+            setTimeout(() => {
+                const services = {
+                    AI: window.aiService?.isInitialized || false,
+                    Firebase: window.firebaseService?.isInitialized || false,
+                    Stripe: window.stripeService?.isInitialized || false
+                };
+                
+                console.log('📊 Overall services status:', services);
             }, 2000);
         }
         
-        // Check Firebase status after a short delay
-        setTimeout(checkFirebaseStatus, 1000);
+        // Check all services status after a short delay
+        setTimeout(checkServicesStatus, 1000);
 
     </script>
 </body>

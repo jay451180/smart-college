@@ -46,6 +46,16 @@ class MainApp {
      * Initialize all services
      */
     async initializeServices() {
+        // Initialize AI service if available
+        if (typeof AIService !== 'undefined') {
+            try {
+                window.aiService = new AIService();
+                console.log('✅ AI service initialized');
+            } catch (error) {
+                console.error('❌ Failed to initialize AI service:', error);
+            }
+        }
+
         // Initialize Firebase service if available
         if (typeof FirebaseService !== 'undefined' && window.CONFIG?.firebase?.enabled) {
             try {
