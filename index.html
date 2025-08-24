@@ -2748,34 +2748,19 @@
             try {
                 console.log('🔐 Initiating Google login...');
                 
-                // Check if Firebase service exists and is initialized
-                if (!window.firebaseService) {
-                    console.log('⚠️ Firebase service not found, attempting to initialize...');
-                    
-                    // Try to initialize Firebase service if it doesn't exist
-                    if (typeof FirebaseService !== 'undefined') {
-                        window.firebaseService = new FirebaseService();
-                        
-                        // Wait for initialization
-                        let attempts = 0;
-                        while (!window.firebaseService.isInitialized && attempts < 30) {
-                            await new Promise(resolve => setTimeout(resolve, 200));
-                            attempts++;
-                        }
-                        
-                        if (!window.firebaseService.isInitialized) {
-                            throw new Error('Firebase service failed to initialize within timeout');
-                        }
-                    } else {
-                        throw new Error('FirebaseService class not available');
-                    }
-                }
+                // Show loading message
+                window.showNotificationMessage?.('正在初始化Firebase服务...', 'info');
                 
-                if (!window.firebaseService.isInitialized) {
-                    throw new Error('Firebase service is not properly initialized');
+                // Wait for Firebase to be ready
+                const firebaseReady = await waitForFirebaseReady();
+                
+                if (!firebaseReady) {
+                    throw new Error('Firebase service failed to initialize properly');
                 }
                 
                 console.log('✅ Firebase service ready, proceeding with Google login...');
+                window.showNotificationMessage?.('正在连接Google账户...', 'info');
+                
                 await window.firebaseService.signInWithGoogle();
                 
             } catch (error) {
@@ -2788,13 +2773,65 @@
                     errorMessage = '登录弹窗被阻止，请允许弹窗后重试';
                 } else if (error.message.includes('network')) {
                     errorMessage = '网络连接问题，请检查网络后重试';
-                } else if (error.message.includes('timeout')) {
-                    errorMessage = 'Firebase服务加载超时，请刷新页面重试';
+                } else if (error.message.includes('timeout') || error.message.includes('failed to initialize')) {
+                    errorMessage = 'Firebase服务初始化失败，请刷新页面重试';
+                } else if (error.message.includes('auth')) {
+                    errorMessage = '认证服务错误，请稍后重试';
                 } else {
                     errorMessage += '：' + error.message;
                 }
                 
-                alert(errorMessage);
+                window.showNotificationMessage?.(errorMessage, 'error');
+            }
+        }
+        
+        // Wait for Firebase to be fully ready
+        async function waitForFirebaseReady() {
+            console.log('⏳ Waiting for Firebase to be ready...');
+            
+            // Check if Firebase service exists
+            if (!window.firebaseService) {
+                console.log('⚠️ Firebase service not found, attempting to initialize...');
+                
+                if (typeof FirebaseService === 'undefined') {
+                    console.error('❌ FirebaseService class not available');
+                    return false;
+                }
+                
+                try {
+                    window.firebaseService = new FirebaseService();
+                } catch (error) {
+                    console.error('❌ Failed to create FirebaseService:', error);
+                    return false;
+                }
+            }
+            
+            // Wait for initialization with longer timeout
+            let attempts = 0;
+            const maxAttempts = 50; // 10 seconds total
+            
+            while (!window.firebaseService.isInitialized && attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                attempts++;
+                
+                if (attempts % 10 === 0) {
+                    console.log(`⏳ Still waiting for Firebase initialization... (${attempts}/${maxAttempts})`);
+                }
+            }
+            
+            // Final check
+            if (window.firebaseService.isInitialized && window.firebaseService.auth) {
+                console.log('✅ Firebase is fully ready for authentication');
+                return true;
+            } else {
+                console.error('❌ Firebase failed to initialize properly');
+                console.log('Firebase service state:', {
+                    exists: !!window.firebaseService,
+                    initialized: window.firebaseService?.isInitialized,
+                    hasAuth: !!window.firebaseService?.auth,
+                    hasConfig: !!window.CONFIG?.firebase?.enabled
+                });
+                return false;
             }
         }
 
@@ -3830,6 +3867,17 @@ ${uni.description}
                 console.log('📊 Overall services status:', services);
             }, 2000);
         }
+        
+        // Listen for Firebase initialization events
+        window.addEventListener('firebaseInitialized', function(event) {
+            console.log('🎉 Firebase initialization completed successfully!');
+            window.showNotificationMessage?.('Firebase服务已就绪', 'success');
+        });
+        
+        window.addEventListener('firebaseInitializationError', function(event) {
+            console.error('❌ Firebase initialization failed:', event.detail.error);
+            window.showNotificationMessage?.('Firebase服务初始化失败', 'error');
+        });
         
         // Check all services status after a short delay
         setTimeout(checkServicesStatus, 1000);

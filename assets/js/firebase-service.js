@@ -21,46 +21,93 @@ class FirebaseService {
      */
     async init() {
         try {
+            console.log('🔥 Starting Firebase initialization...');
+            
             if (!this.config?.enabled) {
-                console.log('Firebase is not enabled in configuration');
+                console.log('❌ Firebase is not enabled in configuration');
+                this.isInitialized = false;
                 return;
             }
+
+            console.log('✅ Firebase config enabled, proceeding...');
 
             // Wait for Firebase to be loaded
             await this.waitForFirebase();
 
-            // Initialize Firebase app
-            this.app = firebase.initializeApp(this.config.config);
-            console.log('✅ Firebase app initialized');
+            // Check if Firebase app is already initialized
+            if (firebase.apps.length > 0) {
+                console.log('⚠️ Firebase app already initialized, using existing app');
+                this.app = firebase.app();
+            } else {
+                // Initialize Firebase app
+                console.log('🚀 Initializing new Firebase app...');
+                this.app = firebase.initializeApp(this.config.config);
+                console.log('✅ Firebase app initialized successfully');
+            }
 
-            // Initialize enabled services
+            // Initialize enabled services with error handling
             if (this.config.services.auth) {
-                this.auth = firebase.auth();
-                this.setupAuthStateListener();
-                console.log('✅ Firebase Auth initialized');
+                try {
+                    this.auth = firebase.auth();
+                    this.setupAuthStateListener();
+                    console.log('✅ Firebase Auth initialized');
+                } catch (error) {
+                    console.error('❌ Failed to initialize Firebase Auth:', error);
+                }
             }
 
             if (this.config.services.firestore) {
-                this.db = firebase.firestore();
-                console.log('✅ Firestore initialized');
+                try {
+                    this.db = firebase.firestore();
+                    console.log('✅ Firestore initialized');
+                } catch (error) {
+                    console.error('❌ Failed to initialize Firestore:', error);
+                }
             }
 
             if (this.config.services.storage) {
-                this.storage = firebase.storage();
-                console.log('✅ Firebase Storage initialized');
+                try {
+                    this.storage = firebase.storage();
+                    console.log('✅ Firebase Storage initialized');
+                } catch (error) {
+                    console.error('❌ Failed to initialize Firebase Storage:', error);
+                }
             }
 
             if (this.config.services.analytics) {
-                this.analytics = firebase.analytics();
-                console.log('✅ Firebase Analytics initialized');
+                try {
+                    this.analytics = firebase.analytics();
+                    console.log('✅ Firebase Analytics initialized');
+                } catch (error) {
+                    console.error('❌ Failed to initialize Firebase Analytics:', error);
+                }
             }
 
-            this.isInitialized = true;
-            console.log('🔥 Firebase service fully initialized');
+            // Final validation
+            if (this.auth) {
+                this.isInitialized = true;
+                console.log('🎉 Firebase service fully initialized and ready!');
+                
+                // Dispatch a custom event to notify other parts of the app
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('firebaseInitialized', {
+                        detail: { service: this }
+                    }));
+                }
+            } else {
+                throw new Error('Critical Firebase services failed to initialize');
+            }
 
         } catch (error) {
             console.error('❌ Failed to initialize Firebase:', error);
             this.isInitialized = false;
+            
+            // Dispatch error event
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('firebaseInitializationError', {
+                    detail: { error: error.message }
+                }));
+            }
         }
     }
 

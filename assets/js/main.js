@@ -59,10 +59,31 @@ class MainApp {
         // Initialize Firebase service if available
         if (typeof FirebaseService !== 'undefined' && window.CONFIG?.firebase?.enabled) {
             try {
+                console.log('🔥 Initializing Firebase service...');
                 window.firebaseService = new FirebaseService();
-                console.log('✅ Firebase service initialized');
+                
+                // Wait for Firebase to be properly initialized
+                let attempts = 0;
+                while (!window.firebaseService.isInitialized && attempts < 30) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    attempts++;
+                }
+                
+                if (window.firebaseService.isInitialized) {
+                    console.log('✅ Firebase service initialized successfully');
+                } else {
+                    console.warn('⚠️ Firebase service initialization is taking longer than expected');
+                }
             } catch (error) {
                 console.error('❌ Failed to initialize Firebase service:', error);
+            }
+        } else {
+            console.log('⚠️ Firebase service not available or disabled');
+            if (typeof FirebaseService === 'undefined') {
+                console.log('  - FirebaseService class not loaded');
+            }
+            if (!window.CONFIG?.firebase?.enabled) {
+                console.log('  - Firebase config not enabled');
             }
         }
 
