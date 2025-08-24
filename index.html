@@ -4,9 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart College Advisor - AI-Powered University Application Platform</title>
-    <script src="assets/js/ai-service.js"></script>
+    <script src="config.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    
+    <!-- Application Services -->
+    <script src="assets/js/firebase-service.js"></script>
     <script src="assets/js/stripe-service.js"></script>
-    <script src="https://js.stripe.com/v3/" async></script>
+    <script src="assets/js/main.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
     <!-- Markdown解析库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
     <!-- 代码高亮库 -->
@@ -2732,16 +2743,44 @@
         });
 
         // Google login
-        function googleLogin() {
-            // Here you can add Google login logic
-            console.log('Google login');
-            showCareer();
+        async function googleLogin() {
+            try {
+                console.log('Initiating Google login...');
+                
+                if (!window.firebaseService) {
+                    throw new Error('Firebase service not initialized');
+                }
+                
+                await window.firebaseService.signInWithGoogle();
+                // Firebase service will handle the UI transition automatically
+                
+            } catch (error) {
+                console.error('Google登录失败:', error);
+                alert('Google登录失败，请重试：' + error.message);
+            }
         }
 
         // Guest login
-        function guestLogin() {
-            console.log('Guest mode');
-            showCareer();
+        async function guestLogin() {
+            try {
+                console.log('Initiating guest login...');
+                
+                if (!window.firebaseService) {
+                    // Fallback to local guest mode
+                    console.log('Firebase not available, using local guest mode');
+                    showCareer();
+                    return;
+                }
+                
+                await window.firebaseService.signInAnonymously();
+                // Firebase service will handle the UI transition automatically
+                
+            } catch (error) {
+                console.error('访客登录失败:', error);
+                // Fallback to local guest mode
+                console.log('Falling back to local guest mode');
+                showCareer();
+            }
         }
 
         // Select career

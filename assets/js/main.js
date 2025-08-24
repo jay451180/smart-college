@@ -46,6 +46,16 @@ class MainApp {
      * Initialize all services
      */
     async initializeServices() {
+        // Initialize Firebase service if available
+        if (typeof FirebaseService !== 'undefined' && window.CONFIG?.firebase?.enabled) {
+            try {
+                window.firebaseService = new FirebaseService();
+                console.log('✅ Firebase service initialized');
+            } catch (error) {
+                console.error('❌ Failed to initialize Firebase service:', error);
+            }
+        }
+
         // Initialize Stripe service if available
         if (typeof StripeService !== 'undefined' && window.CONFIG?.stripe?.enabled) {
             try {
@@ -56,7 +66,6 @@ class MainApp {
             }
         }
 
-        // Initialize other services as needed
         console.log('✅ All services initialized');
     }
 

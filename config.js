@@ -32,6 +32,26 @@ window.CONFIG = {
         }
     },
 
+    // Firebase配置
+    firebase: {
+        enabled: true,
+        config: {
+            apiKey: "AIzaSyAPjCKi9CWvivVVxANhugEz6AY3lpRBVec",
+            authDomain: "smart-college-cf2b1.firebaseapp.com",
+            projectId: "smart-college-cf2b1",
+            storageBucket: "smart-college-cf2b1.firebasestorage.app",
+            messagingSenderId: "445324851190",
+            appId: "1:445324851190:web:35ab87f493ec126265f9d7",
+            measurementId: "G-B5E2CB2L66"
+        },
+        services: {
+            auth: true,
+            firestore: true,
+            storage: true,
+            analytics: true
+        }
+    },
+
     // 用户界面配置
     ui: {
         theme: 'modern',
