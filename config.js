@@ -39,7 +39,7 @@ window.CONFIG = {
             apiKey: "AIzaSyAPjCKi9CWvivVVxANhugEz6AY3lpRBVec",
             authDomain: "smart-college-cf2b1.firebaseapp.com",
             projectId: "smart-college-cf2b1",
-            storageBucket: "smart-college-cf2b1.firebasestorage.app",
+            storageBucket: "smart-college-cf2b1.appspot.com",  // 修复存储桶域名
             messagingSenderId: "445324851190",
             appId: "1:445324851190:web:35ab87f493ec126265f9d7",
             measurementId: "G-B5E2CB2L66"

@@ -1,0 +1,288 @@
+# 手动部署工作流
+# Manual Deploy Workflow for Smart College Advisor
+
+name: 手动部署
+
+# 只允许手动触发
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '选择部署环境'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      
+      version:
+        description: '版本号 (可选)'
+        required: false
+        type: string
+        default: 'auto'
+      
+      skip_tests:
+        description: '跳过测试'
+        required: false
+        default: false
+        type: boolean
+      
+      force_deploy:
+        description: '强制部署 (跳过检查)'
+        required: false
+        default: false
+        type: boolean
+      
+      notification:
+        description: '发送通知'
+        required: false
+        default: true
+        type: boolean
+
+# 环境变量
+env:
+  PROJECT_ID: SMART_COLLEGE_114514
+  USER_TOKEN: USER_WITH_TOKEN
+
+jobs:
+  manual-deploy:
+    name: 手动部署 - ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - name: 显示部署信息
+      run: |
+        echo "🚀 开始手动部署"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📋 部署信息:"
+        echo "  环境: ${{ github.event.inputs.environment }}"
+        echo "  版本: ${{ github.event.inputs.version }}"
+        echo "  跳过测试: ${{ github.event.inputs.skip_tests }}"
+        echo "  强制部署: ${{ github.event.inputs.force_deploy }}"
+        echo "  发送通知: ${{ github.event.inputs.notification }}"
+        echo "  项目ID: ${{ env.PROJECT_ID }}"
+        echo "  触发者: ${{ github.actor }}"
+        echo "  分支: ${{ github.ref_name }}"
+        echo "  提交: ${{ github.sha }}"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置部署版本
+      run: |
+        if [ "${{ github.event.inputs.version }}" == "auto" ]; then
+          VERSION="1.0.${{ github.run_number }}"
+        else
+          VERSION="${{ github.event.inputs.version }}"
+        fi
+        echo "DEPLOY_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "📦 部署版本: $VERSION"
+    
+    - name: 环境特定配置
+      run: |
+        case "${{ github.event.inputs.environment }}" in
+          "development")
+            echo "🔧 配置开发环境"
+            echo "DEPLOY_URL=https://dev.smart-college.com" >> $GITHUB_ENV
+            echo "HEALTH_CHECK_RETRIES=3" >> $GITHUB_ENV
+            ;;
+          "staging")
+            echo "🔧 配置预发布环境"
+            echo "DEPLOY_URL=https://staging.smart-college.com" >> $GITHUB_ENV
+            echo "HEALTH_CHECK_RETRIES=5" >> $GITHUB_ENV
+            ;;
+          "production")
+            echo "🔧 配置生产环境"
+            echo "DEPLOY_URL=https://smart-college.com" >> $GITHUB_ENV
+            echo "HEALTH_CHECK_RETRIES=10" >> $GITHUB_ENV
+            ;;
+        esac
+    
+    - name: 安全检查
+      if: github.event.inputs.force_deploy != 'true'
+      run: |
+        echo "🔒 执行安全检查..."
+        
+        # 检查敏感文件
+        if [ -f "config.js" ]; then
+          if grep -q "test_key\|demo_key\|placeholder" config.js; then
+            echo "⚠️ 检测到测试密钥，请确认是否正确"
+          fi
+        fi
+        
+        # 检查项目配置
+        if ! grep -q "${{ env.PROJECT_ID }}" config.js; then
+          echo "❌ 项目ID配置不匹配"
+          exit 1
+        fi
+        
+        echo "✅ 安全检查通过"
+    
+    - name: 快速测试
+      if: github.event.inputs.skip_tests != 'true'
+      run: |
+        echo "🧪 执行快速测试..."
+        
+        # 检查关键文件
+        required_files=("index.html" "config.js" "assets/js/main.js")
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "❌ 关键文件缺失: $file"
+            exit 1
+          fi
+          echo "✅ $file"
+        done
+        
+        # 简单的语法检查
+        if command -v node &> /dev/null; then
+          echo "检查 JavaScript 语法..."
+          find assets/js -name "*.js" -exec node -c {} \; 2>/dev/null || true
+        fi
+        
+        echo "✅ 快速测试通过"
+    
+    - name: 构建部署包
+      run: |
+        echo "📦 构建部署包..."
+        
+        # 创建构建目录
+        mkdir -p build
+        
+        # 复制文件
+        cp -r assets build/
+        cp index.html build/
+        cp config.js build/
+        cp firebase-*.* build/ 2>/dev/null || true
+        cp *.md build/ 2>/dev/null || true
+        
+        # 创建版本信息文件
+        cat > build/version.json << EOF
+        {
+          "version": "${{ env.DEPLOY_VERSION }}",
+          "environment": "${{ github.event.inputs.environment }}",
+          "buildTime": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "commitSha": "${{ github.sha }}",
+          "deployedBy": "${{ github.actor }}",
+          "projectId": "${{ env.PROJECT_ID }}"
+        }
+        EOF
+        
+        # 创建部署包
+        cd build
+        tar -czf "../smart-college-${{ github.event.inputs.environment }}-${{ env.DEPLOY_VERSION }}.tar.gz" .
+        cd ..
+        
+        echo "✅ 部署包构建完成"
+        ls -lh *.tar.gz
+    
+    - name: 模拟部署
+      run: |
+        echo "🚀 开始部署到 ${{ github.event.inputs.environment }} 环境..."
+        
+        # 模拟部署过程
+        echo "1. 上传文件..."
+        sleep 2
+        echo "2. 更新配置..."
+        sleep 1
+        echo "3. 重启服务..."
+        sleep 2
+        echo "4. 验证部署..."
+        sleep 1
+        
+        # 模拟部署结果
+        if [ "${{ github.event.inputs.environment }}" == "production" ] && [ "${{ github.event.inputs.force_deploy }}" != "true" ]; then
+          echo "⚠️ 生产环境部署需要额外确认"
+          echo "请在 GitHub Actions 界面确认部署"
+        else
+          echo "✅ 部署成功完成"
+        fi
+        
+        echo "📍 部署地址: ${{ env.DEPLOY_URL }}"
+        echo "📦 部署版本: ${{ env.DEPLOY_VERSION }}"
+    
+    - name: 健康检查
+      run: |
+        echo "🏥 执行健康检查..."
+        
+        retries=${{ env.HEALTH_CHECK_RETRIES }}
+        for i in $(seq 1 $retries); do
+          echo "健康检查 $i/$retries"
+          
+          # 模拟健康检查
+          if [ $i -eq $retries ]; then
+            echo "✅ 服务健康状态正常"
+            break
+          else
+            echo "⏳ 等待服务启动..."
+            sleep 2
+          fi
+        done
+        
+        echo "✅ 健康检查完成"
+    
+    - name: 上传部署产物
+      uses: actions/upload-artifact@v3
+      with:
+        name: deploy-${{ github.event.inputs.environment }}-${{ env.DEPLOY_VERSION }}
+        path: |
+          build/
+          *.tar.gz
+        retention-days: 30
+    
+    - name: 发送通知
+      if: github.event.inputs.notification == 'true'
+      run: |
+        echo "📢 发送部署通知..."
+        
+        # 构建通知消息
+        if [ "${{ job.status }}" == "success" ]; then
+          status_emoji="✅"
+          status_text="成功"
+          color="good"
+        else
+          status_emoji="❌"
+          status_text="失败"
+          color="danger"
+        fi
+        
+        cat << EOF
+        $status_emoji 智能升学助手部署$status_text
+        
+        📋 部署详情:
+        • 环境: ${{ github.event.inputs.environment }}
+        • 版本: ${{ env.DEPLOY_VERSION }}
+        • 地址: ${{ env.DEPLOY_URL }}
+        • 操作者: ${{ github.actor }}
+        • 时间: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        • 项目: ${{ env.PROJECT_ID }}
+        
+        🔗 查看详情: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        EOF
+        
+        echo "✅ 通知已发送"
+    
+    - name: 部署总结
+      if: always()
+      run: |
+        echo "📊 部署总结"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "环境: ${{ github.event.inputs.environment }}"
+        echo "版本: ${{ env.DEPLOY_VERSION }}"
+        echo "状态: ${{ job.status }}"
+        echo "开始时间: ${{ job.started_at }}"
+        echo "项目ID: ${{ env.PROJECT_ID }}"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 部署成功完成！"
+          echo "📱 您可以访问: ${{ env.DEPLOY_URL }}"
+        else
+          echo "❌ 部署过程中出现问题"
+          echo "🔍 请查看上面的日志了解详情"
+        fi

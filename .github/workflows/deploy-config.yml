@@ -1,0 +1,82 @@
+# 部署配置文件
+# Deploy Configuration for Smart College Advisor
+
+name: Deploy Configuration
+
+# 环境变量模板
+env:
+  # 项目基本信息
+  PROJECT_NAME: "智能升学助手"
+  PROJECT_ID: "SMART_COLLEGE_114514"
+  USER_TOKEN: "USER_WITH_TOKEN"
+  
+  # 版本信息
+  VERSION_MAJOR: "1"
+  VERSION_MINOR: "0"
+  
+  # 部署目标
+  DEPLOY_TARGETS:
+    development:
+      url: "https://dev.smart-college.com"
+      branch: "develop"
+      auto_deploy: true
+    staging:
+      url: "https://staging.smart-college.com"
+      branch: "main"
+      auto_deploy: false
+    production:
+      url: "https://smart-college.com"
+      branch: "main"
+      auto_deploy: false
+      requires_approval: true
+
+# 部署脚本配置
+deployment:
+  # 构建前检查
+  pre_build_checks:
+    - "文件完整性检查"
+    - "配置验证"
+    - "依赖安全扫描"
+  
+  # 构建步骤
+  build_steps:
+    - "安装依赖"
+    - "代码检查"
+    - "资源优化"
+    - "打包构建"
+  
+  # 部署后检查
+  post_deploy_checks:
+    - "服务健康检查"
+    - "功能验证"
+    - "性能测试"
+    - "通知发送"
+
+# 监控配置
+monitoring:
+  health_check_interval: "0 2 * * *"  # 每天 UTC 02:00
+  performance_threshold:
+    page_load_time: 3000  # 毫秒
+    first_contentful_paint: 1500  # 毫秒
+    largest_contentful_paint: 2500  # 毫秒
+  
+  alerts:
+    - type: "deployment_failure"
+      channels: ["email", "webhook"]
+    - type: "performance_degradation"
+      channels: ["webhook"]
+    - type: "security_issue"
+      channels: ["email", "webhook"]
+
+# 回滚策略
+rollback:
+  strategy: "blue_green"
+  auto_rollback_conditions:
+    - "health_check_failure"
+    - "critical_error_rate > 5%"
+    - "response_time > 5000ms"
+  
+  manual_rollback:
+    enabled: true
+    approval_required: true
+    max_versions_kept: 5

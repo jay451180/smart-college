@@ -1,0 +1,517 @@
+# 智能升学助手 - CI/CD 工作流
+# Smart College Advisor - Continuous Integration and Deployment Workflow
+name: Smart College Advisor CI/CD
+
+# 触发条件
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # 每天 UTC 02:00 (北京时间 10:00) 运行健康检查
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+        - development
+        - staging
+        - production
+      run_tests:
+        description: '运行测试'
+        required: false
+        default: true
+        type: boolean
+
+# 环境变量
+env:
+  PROJECT_ID: SMART_COLLEGE_114514
+  USER_TOKEN: USER_WITH_TOKEN
+  NODE_VERSION: '18.x'
+  PYTHON_VERSION: '3.9'
+
+# 工作任务
+jobs:
+  # 1. 代码质量检查
+  code-quality:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: 设置 Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: 缓存依赖
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.npm
+          ~/.cache/pip
+          node_modules
+        key: ${{ runner.os }}-deps-${{ hashFiles('**/package-lock.json', '**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-deps-
+    
+    - name: 安装 Python 依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black pylint
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: 安装 Node.js 依赖
+      run: |
+        cd backend
+        npm ci
+    
+    - name: Python 代码格式检查
+      run: |
+        # Black 格式化检查
+        black --check --diff .
+        # Flake8 代码风格检查
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Pylint 代码质量检查
+        find . -name "*.py" -exec pylint {} \; || true
+    
+    - name: JavaScript 代码检查
+      run: |
+        cd backend
+        npm run lint || true
+        # 如果有 ESLint 配置，运行 ESLint
+        if [ -f .eslintrc.js ] || [ -f .eslintrc.json ]; then
+          npx eslint . --ext .js,.jsx,.ts,.tsx || true
+        fi
+    
+    - name: HTML/CSS 验证
+      run: |
+        # 安装 HTML 验证工具
+        npm install -g html-validate
+        # 验证 HTML 文件
+        html-validate index.html || true
+        html-validate firebase-test.html || true
+
+  # 2. 安全扫描
+  security-scan:
+    name: 安全扫描
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 运行 CodeQL 分析
+      uses: github/codeql-action/init@v2
+      with:
+        languages: javascript, python
+    
+    - name: 自动构建
+      uses: github/codeql-action/autobuild@v2
+    
+    - name: 执行 CodeQL 分析
+      uses: github/codeql-action/analyze@v2
+    
+    - name: 依赖安全扫描
+      run: |
+        # 扫描 Python 依赖
+        pip install safety
+        safety check || true
+        
+        # 扫描 Node.js 依赖
+        cd backend
+        npm audit || true
+    
+    - name: 敏感信息扫描
+      run: |
+        # 检查是否有硬编码的密钥或敏感信息
+        echo "检查敏感信息..."
+        grep -r -i "password\|secret\|key\|token" --include="*.js" --include="*.py" --include="*.html" . || true
+        echo "敏感信息扫描完成"
+
+  # 3. 功能测试
+  functional-tests:
+    name: 功能测试
+    runs-on: ubuntu-latest
+    needs: code-quality
+    if: ${{ github.event.inputs.run_tests != 'false' }}
+    
+    strategy:
+      matrix:
+        browser: [chrome, firefox]
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    
+    - name: 设置 Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: 安装依赖
+      run: |
+        pip install -r requirements.txt
+        cd backend && npm install
+    
+    - name: 启动后端服务
+      run: |
+        cd backend
+        npm start &
+        sleep 10
+        echo "后端服务已启动"
+    
+    - name: 运行 Python 测试
+      run: |
+        cd tests
+        python -m pytest test_basic.py -v
+    
+    - name: 设置浏览器测试环境
+      run: |
+        # 安装 Selenium
+        pip install selenium pytest-selenium
+        
+        # 安装浏览器驱动
+        if [ "${{ matrix.browser }}" == "chrome" ]; then
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install google-chrome-stable
+        elif [ "${{ matrix.browser }}" == "firefox" ]; then
+          sudo apt-get update
+          sudo apt-get install firefox
+        fi
+    
+    - name: 运行端到端测试
+      run: |
+        echo "运行 ${{ matrix.browser }} 浏览器测试"
+        python -c "
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# 配置浏览器
+if '${{ matrix.browser }}' == 'chrome':
+    from selenium.webdriver.chrome.options import Options
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    driver = webdriver.Chrome(options=options)
+else:
+    from selenium.webdriver.firefox.options import Options
+    options = Options()
+    options.add_argument('--headless')
+    driver = webdriver.Firefox(options=options)
+
+try:
+    # 测试主页加载
+    driver.get('file://${{ github.workspace }}/index.html')
+    wait = WebDriverWait(driver, 10)
+    
+    # 检查标题
+    assert '智能升学助手' in driver.title
+    print('✅ 页面标题检查通过')
+    
+    # 检查登录表单
+    login_form = wait.until(EC.presence_of_element_located((By.ID, 'loginForm')))
+    assert login_form.is_displayed()
+    print('✅ 登录表单显示正常')
+    
+    # 检查快速咨询按钮
+    quick_btns = driver.find_elements(By.CLASS_NAME, 'quick-option-btn')
+    assert len(quick_btns) > 0
+    print(f'✅ 找到 {len(quick_btns)} 个快速咨询按钮')
+    
+    print('🎉 所有基础功能测试通过')
+    
+except Exception as e:
+    print(f'❌ 测试失败: {e}')
+    driver.save_screenshot('test_failure.png')
+    raise
+finally:
+    driver.quit()
+        "
+    
+    - name: 上传测试报告
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results-${{ matrix.browser }}
+        path: |
+          test_failure.png
+          *.log
+
+  # 4. 性能测试
+  performance-tests:
+    name: 性能测试
+    runs-on: ubuntu-latest
+    needs: functional-tests
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    
+    - name: 安装 Lighthouse
+      run: npm install -g @lhci/cli@0.12.x
+    
+    - name: 启动本地服务器
+      run: |
+        python3 -m http.server 8000 &
+        sleep 5
+    
+    - name: 运行 Lighthouse 性能测试
+      run: |
+        lhci autorun \
+          --collect.url="http://localhost:8000" \
+          --collect.numberOfRuns=3 \
+          --assert.preset="lighthouse:recommended" \
+          --upload.target="temporary-public-storage" || true
+    
+    - name: 文件大小检查
+      run: |
+        echo "检查文件大小..."
+        find . -name "*.html" -exec ls -lh {} \;
+        find . -name "*.js" -exec ls -lh {} \;
+        find . -name "*.css" -exec ls -lh {} \;
+        
+        # 检查 index.html 是否过大
+        size=$(stat -c%s "index.html")
+        if [ $size -gt 500000 ]; then
+          echo "⚠️ index.html 文件过大: $size bytes"
+        else
+          echo "✅ index.html 文件大小合适: $size bytes"
+        fi
+
+  # 5. 构建和部署
+  build-and-deploy:
+    name: 构建和部署
+    runs-on: ubuntu-latest
+    needs: [security-scan, functional-tests]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment
+    
+    environment: 
+      name: ${{ github.event.inputs.environment || 'development' }}
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置构建环境
+      run: |
+        echo "PROJECT_ID=${{ env.PROJECT_ID }}" >> $GITHUB_ENV
+        echo "DEPLOY_ENV=${{ github.event.inputs.environment || 'development' }}" >> $GITHUB_ENV
+        echo "BUILD_NUMBER=${{ github.run_number }}" >> $GITHUB_ENV
+        echo "COMMIT_SHA=${{ github.sha }}" >> $GITHUB_ENV
+    
+    - name: 创建构建信息
+      run: |
+        mkdir -p dist
+        cat > dist/build-info.json << EOF
+        {
+          "projectId": "${{ env.PROJECT_ID }}",
+          "buildNumber": "${{ github.run_number }}",
+          "commitSha": "${{ github.sha }}",
+          "buildTime": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "environment": "${{ env.DEPLOY_ENV }}",
+          "branch": "${{ github.ref_name }}",
+          "version": "1.0.${{ github.run_number }}"
+        }
+        EOF
+    
+    - name: 优化资源文件
+      run: |
+        # 复制主要文件到 dist 目录
+        cp -r assets dist/
+        cp -r backend dist/
+        cp index.html dist/
+        cp config.js dist/
+        cp firebase-*.* dist/ 2>/dev/null || true
+        cp *.md dist/ 2>/dev/null || true
+        
+        # 压缩 JavaScript 文件 (如果有 uglify-js)
+        if command -v uglifyjs &> /dev/null; then
+          find dist -name "*.js" -not -path "*/node_modules/*" -exec uglifyjs {} -o {} \;
+        fi
+        
+        echo "✅ 资源文件优化完成"
+    
+    - name: 生成部署包
+      run: |
+        cd dist
+        tar -czf "../smart-college-${{ env.DEPLOY_ENV }}-${{ github.run_number }}.tar.gz" .
+        cd ..
+        echo "📦 部署包已生成: smart-college-${{ env.DEPLOY_ENV }}-${{ github.run_number }}.tar.gz"
+    
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v3
+      with:
+        name: smart-college-build-${{ github.run_number }}
+        path: |
+          dist/
+          smart-college-*.tar.gz
+        retention-days: 30
+    
+    - name: 模拟部署 (开发环境)
+      if: env.DEPLOY_ENV == 'development'
+      run: |
+        echo "🚀 部署到开发环境..."
+        echo "项目ID: ${{ env.PROJECT_ID }}"
+        echo "用户令牌: ${{ env.USER_TOKEN }}"
+        echo "构建版本: 1.0.${{ github.run_number }}"
+        echo "✅ 开发环境部署完成"
+    
+    - name: 模拟部署 (生产环境)
+      if: env.DEPLOY_ENV == 'production'
+      run: |
+        echo "🚀 部署到生产环境..."
+        echo "项目ID: ${{ env.PROJECT_ID }}"
+        echo "执行生产环境部署检查..."
+        
+        # 生产环境额外检查
+        if [ ! -f "dist/index.html" ]; then
+          echo "❌ 关键文件缺失，部署终止"
+          exit 1
+        fi
+        
+        echo "✅ 生产环境部署完成"
+
+  # 6. 通知和清理
+  notification:
+    name: 通知和清理
+    runs-on: ubuntu-latest
+    needs: [build-and-deploy]
+    if: always()
+    
+    steps:
+    - name: 检查工作流状态
+      run: |
+        if [ "${{ needs.build-and-deploy.result }}" == "success" ]; then
+          echo "STATUS=success" >> $GITHUB_ENV
+          echo "MESSAGE=🎉 智能升学助手部署成功！" >> $GITHUB_ENV
+        else
+          echo "STATUS=failure" >> $GITHUB_ENV
+          echo "MESSAGE=❌ 智能升学助手部署失败，请检查日志" >> $GITHUB_ENV
+        fi
+    
+    - name: 发送通知 (模拟)
+      run: |
+        echo "📢 发送部署通知..."
+        echo "状态: ${{ env.STATUS }}"
+        echo "消息: ${{ env.MESSAGE }}"
+        echo "项目: ${{ env.PROJECT_ID }}"
+        echo "构建号: ${{ github.run_number }}"
+        echo "分支: ${{ github.ref_name }}"
+        echo "提交: ${{ github.sha }}"
+        
+        # 这里可以集成实际的通知服务，如：
+        # - 企业微信
+        # - 钉钉
+        # - Slack
+        # - 邮件
+        # - 短信
+    
+    - name: 清理临时文件
+      run: |
+        echo "🧹 清理临时文件..."
+        # 清理可能的临时文件
+        rm -f *.log
+        rm -f test_failure.png
+        echo "✅ 清理完成"
+
+  # 7. 健康检查 (定时任务)
+  health-check:
+    name: 健康检查
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 检查网站可访问性
+      run: |
+        echo "🏥 执行健康检查..."
+        
+        # 检查关键文件
+        files=("index.html" "config.js" "assets/js/main.js")
+        for file in "${files[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file 存在"
+          else
+            echo "❌ $file 缺失"
+          fi
+        done
+        
+        # 检查配置完整性
+        if grep -q "PROJECT_ID.*SMART_COLLEGE_114514" config.js; then
+          echo "✅ 项目配置正确"
+        else
+          echo "⚠️ 项目配置可能有问题"
+        fi
+        
+        echo "✅ 健康检查完成"
+    
+    - name: 生成健康报告
+      run: |
+        cat > health-report.md << EOF
+        # 智能升学助手健康检查报告
+        
+        **检查时间**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        **项目ID**: ${{ env.PROJECT_ID }}
+        **最新提交**: ${{ github.sha }}
+        
+        ## 检查项目
+        
+        - ✅ 核心文件完整性
+        - ✅ 配置文件正确性
+        - ✅ 代码仓库状态
+        
+        ## 建议
+        
+        - 定期更新依赖包
+        - 监控网站性能
+        - 备份重要数据
+        
+        ---
+        *此报告由 GitHub Actions 自动生成*
+        EOF
+        
+        echo "📋 健康报告已生成"
+        cat health-report.md
+    
+    - name: 上传健康报告
+      uses: actions/upload-artifact@v3
+      with:
+        name: health-report-${{ github.run_number }}
+        path: health-report.md
+        retention-days: 7

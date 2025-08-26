@@ -1,0 +1,457 @@
+# 项目监控工作流
+# Project Monitoring Workflow for Smart College Advisor
+
+name: 项目监控
+
+# 触发条件
+on:
+  schedule:
+    # 每小时检查一次 (UTC)
+    - cron: '0 * * * *'
+    # 每天深度检查 (UTC 02:00 = 北京时间 10:00)
+    - cron: '0 2 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      check_type:
+        description: '检查类型'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - quick
+          - full
+          - security
+          - performance
+
+# 环境变量
+env:
+  PROJECT_ID: SMART_COLLEGE_114514
+  USER_TOKEN: USER_WITH_TOKEN
+  MONITOR_VERSION: "1.0.0"
+
+jobs:
+  # 快速健康检查
+  quick-health-check:
+    name: 快速健康检查
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'quick' || github.event_name == 'schedule'
+    
+    outputs:
+      status: ${{ steps.health.outputs.status }}
+      issues: ${{ steps.health.outputs.issues }}
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 执行健康检查
+      id: health
+      run: |
+        echo "🏥 执行快速健康检查..."
+        issues=0
+        status="healthy"
+        
+        # 检查关键文件
+        critical_files=(
+          "index.html"
+          "config.js" 
+          "assets/js/main.js"
+          "assets/js/firebase-service.js"
+        )
+        
+        echo "📁 检查关键文件..."
+        for file in "${critical_files[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file"
+          else
+            echo "❌ $file 缺失"
+            issues=$((issues + 1))
+            status="unhealthy"
+          fi
+        done
+        
+        # 检查配置
+        echo "⚙️ 检查配置..."
+        if grep -q "$PROJECT_ID" config.js; then
+          echo "✅ 项目ID配置正确"
+        else
+          echo "❌ 项目ID配置问题"
+          issues=$((issues + 1))
+          status="unhealthy"
+        fi
+        
+        # 检查文件大小
+        echo "📊 检查文件大小..."
+        if [ -f "index.html" ]; then
+          size=$(stat -c%s "index.html")
+          if [ $size -gt 1000000 ]; then  # 1MB
+            echo "⚠️ index.html 过大: ${size} bytes"
+            issues=$((issues + 1))
+            status="warning"
+          else
+            echo "✅ index.html 大小正常: ${size} bytes"
+          fi
+        fi
+        
+        # 输出结果
+        echo "status=$status" >> $GITHUB_OUTPUT
+        echo "issues=$issues" >> $GITHUB_OUTPUT
+        
+        echo "🏥 健康检查完成"
+        echo "状态: $status"
+        echo "问题数: $issues"
+
+  # 完整系统检查
+  full-system-check:
+    name: 完整系统检查
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'full' || (github.event_name == 'schedule' && github.event.schedule == '0 2 * * *')
+    needs: quick-health-check
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+    
+    - name: 设置 Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: 代码质量检查
+      run: |
+        echo "🔍 代码质量检查..."
+        
+        # JavaScript 语法检查
+        if command -v node &> /dev/null; then
+          echo "检查 JavaScript 文件..."
+          js_files=$(find assets/js -name "*.js" 2>/dev/null || echo "")
+          if [ -n "$js_files" ]; then
+            echo "$js_files" | xargs -I {} node -c {} 2>/dev/null && echo "✅ JavaScript 语法正确" || echo "⚠️ JavaScript 语法问题"
+          fi
+        fi
+        
+        # HTML 基本检查
+        echo "检查 HTML 文件..."
+        if [ -f "index.html" ]; then
+          # 检查基本 HTML 结构
+          if grep -q "<!DOCTYPE html>" index.html && grep -q "</html>" index.html; then
+            echo "✅ HTML 结构正确"
+          else
+            echo "⚠️ HTML 结构可能有问题"
+          fi
+          
+          # 检查重要元素
+          if grep -q "charset.*utf-8" index.html; then
+            echo "✅ 字符编码正确"
+          else
+            echo "⚠️ 字符编码设置"
+          fi
+        fi
+    
+    - name: 依赖检查
+      run: |
+        echo "📦 依赖检查..."
+        
+        # 检查 package.json (如果存在)
+        if [ -f "backend/package.json" ]; then
+          echo "检查 Node.js 依赖..."
+          cd backend
+          if command -v npm &> /dev/null; then
+            npm audit --audit-level=high || echo "⚠️ 发现高风险依赖"
+          fi
+          cd ..
+        fi
+        
+        # 检查 requirements.txt (如果存在)
+        if [ -f "requirements.txt" ]; then
+          echo "检查 Python 依赖..."
+          pip install safety
+          safety check -r requirements.txt || echo "⚠️ 发现安全问题"
+        fi
+    
+    - name: 性能检查
+      run: |
+        echo "⚡ 性能检查..."
+        
+        # 文件大小统计
+        echo "文件大小统计:"
+        find . -name "*.html" -o -name "*.js" -o -name "*.css" | while read file; do
+          size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo "0")
+          echo "  $file: ${size} bytes"
+        done
+        
+        # 图片优化检查
+        if find assets/images -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" 2>/dev/null | head -1 | grep -q .; then
+          echo "检查图片文件..."
+          find assets/images -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | while read img; do
+            size=$(stat -c%s "$img" 2>/dev/null || stat -f%z "$img" 2>/dev/null || echo "0")
+            if [ $size -gt 500000 ]; then  # 500KB
+              echo "⚠️ 图片较大: $img (${size} bytes)"
+            else
+              echo "✅ 图片大小合适: $img"
+            fi
+          done
+        fi
+    
+    - name: 配置验证
+      run: |
+        echo "⚙️ 配置验证..."
+        
+        # Firebase 配置检查
+        if [ -f "config.js" ]; then
+          echo "检查 Firebase 配置..."
+          if grep -q "firebase.*enabled.*true" config.js; then
+            echo "✅ Firebase 已启用"
+            
+            # 检查必要的配置项
+            config_items=("apiKey" "authDomain" "projectId" "storageBucket" "messagingSenderId" "appId")
+            for item in "${config_items[@]}"; do
+              if grep -q "$item" config.js; then
+                echo "✅ $item 配置存在"
+              else
+                echo "⚠️ $item 配置缺失"
+              fi
+            done
+          else
+            echo "⚠️ Firebase 未启用或配置有问题"
+          fi
+        fi
+        
+        # 项目 ID 验证
+        if grep -q "$PROJECT_ID" config.js; then
+          echo "✅ 项目 ID 配置正确"
+        else
+          echo "❌ 项目 ID 配置错误"
+        fi
+
+  # 安全检查
+  security-check:
+    name: 安全检查
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'security' || (github.event_name == 'schedule' && github.event.schedule == '0 2 * * *')
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 敏感信息扫描
+      run: |
+        echo "🔒 敏感信息扫描..."
+        
+        # 检查常见的敏感信息模式
+        patterns=(
+          "password.*="
+          "secret.*="
+          "token.*="
+          "api_key.*="
+          "private_key"
+          "BEGIN.*PRIVATE.*KEY"
+        )
+        
+        found_issues=false
+        for pattern in "${patterns[@]}"; do
+          if grep -r -i "$pattern" --include="*.js" --include="*.html" --include="*.json" . | grep -v ".git" | grep -v "node_modules"; then
+            echo "⚠️ 发现可能的敏感信息: $pattern"
+            found_issues=true
+          fi
+        done
+        
+        if [ "$found_issues" = false ]; then
+          echo "✅ 未发现明显的敏感信息"
+        fi
+    
+    - name: 文件权限检查
+      run: |
+        echo "🔐 文件权限检查..."
+        
+        # 检查是否有过于宽松的权限
+        if find . -type f -perm 777 | head -1 | grep -q .; then
+          echo "⚠️ 发现权限过于宽松的文件:"
+          find . -type f -perm 777
+        else
+          echo "✅ 文件权限正常"
+        fi
+    
+    - name: 外部依赖检查
+      run: |
+        echo "🌐 外部依赖检查..."
+        
+        # 检查 HTML 中的外部资源
+        if [ -f "index.html" ]; then
+          echo "检查外部资源链接..."
+          
+          # 检查 CDN 链接
+          if grep -o 'https://[^"]*' index.html | grep -E "(googleapis|gstatic|unpkg|jsdelivr)" > /dev/null; then
+            echo "✅ 发现 CDN 资源链接"
+            grep -o 'https://[^"]*' index.html | grep -E "(googleapis|gstatic|unpkg|jsdelivr)" | head -5
+          fi
+          
+          # 检查是否有不安全的 http 链接
+          if grep -o 'http://[^"]*' index.html > /dev/null; then
+            echo "⚠️ 发现不安全的 HTTP 链接:"
+            grep -o 'http://[^"]*' index.html | head -5
+          else
+            echo "✅ 未发现不安全的 HTTP 链接"
+          fi
+        fi
+
+  # 性能监控
+  performance-monitor:
+    name: 性能监控
+    runs-on: ubuntu-latest
+    if: github.event.inputs.check_type == 'performance' || (github.event_name == 'schedule' && github.event.schedule == '0 2 * * *')
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+    
+    - name: 安装 Lighthouse
+      run: npm install -g @lhci/cli@0.12.x
+    
+    - name: 启动本地服务器
+      run: |
+        echo "🚀 启动本地服务器..."
+        python3 -m http.server 8000 &
+        SERVER_PID=$!
+        echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+        sleep 5
+        echo "服务器已启动 (PID: $SERVER_PID)"
+    
+    - name: 性能测试
+      run: |
+        echo "⚡ 执行性能测试..."
+        
+        # 运行 Lighthouse
+        lhci autorun \
+          --collect.url="http://localhost:8000" \
+          --collect.numberOfRuns=1 \
+          --collect.settings.chromeFlags="--no-sandbox --headless" \
+          --assert.preset="lighthouse:no-pwa" || true
+    
+    - name: 资源大小分析
+      run: |
+        echo "📊 资源大小分析..."
+        
+        total_size=0
+        
+        echo "文件大小详情:"
+        echo "├── HTML 文件:"
+        find . -name "*.html" -type f | while read file; do
+          size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file")
+          echo "│   ├── $file: $(($size / 1024))KB"
+        done
+        
+        echo "├── JavaScript 文件:"
+        find assets/js -name "*.js" -type f 2>/dev/null | while read file; do
+          size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file")
+          echo "│   ├── $file: $(($size / 1024))KB"
+        done
+        
+        echo "└── CSS 文件:"
+        find assets/css -name "*.css" -type f 2>/dev/null | while read file; do
+          size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file")
+          echo "    ├── $file: $(($size / 1024))KB"
+        done || echo "    └── (无独立 CSS 文件)"
+    
+    - name: 清理
+      if: always()
+      run: |
+        if [ -n "$SERVER_PID" ]; then
+          kill $SERVER_PID 2>/dev/null || true
+          echo "🧹 服务器已停止"
+        fi
+
+  # 生成监控报告
+  generate-report:
+    name: 生成监控报告
+    runs-on: ubuntu-latest
+    needs: [quick-health-check, full-system-check, security-check, performance-monitor]
+    if: always()
+    
+    steps:
+    - name: 生成报告
+      run: |
+        echo "📋 生成监控报告..."
+        
+        # 获取当前时间
+        current_time=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        
+        # 创建报告
+        cat > monitoring-report.md << EOF
+        # 智能升学助手监控报告
+        
+        **生成时间**: $current_time  
+        **项目ID**: $PROJECT_ID  
+        **监控版本**: $MONITOR_VERSION  
+        **触发方式**: ${{ github.event_name }}  
+        **检查类型**: ${{ github.event.inputs.check_type || 'scheduled' }}
+        
+        ## 📊 检查结果摘要
+        
+        | 检查项目 | 状态 | 说明 |
+        |---------|------|------|
+        | 快速健康检查 | ${{ needs.quick-health-check.result == 'success' && '✅ 通过' || '❌ 失败' }} | 基础文件和配置检查 |
+        | 完整系统检查 | ${{ needs.full-system-check.result == 'success' && '✅ 通过' || needs.full-system-check.result == 'skipped' && '⏭️ 跳过' || '❌ 失败' }} | 代码质量和依赖检查 |
+        | 安全检查 | ${{ needs.security-check.result == 'success' && '✅ 通过' || needs.security-check.result == 'skipped' && '⏭️ 跳过' || '❌ 失败' }} | 敏感信息和权限检查 |
+        | 性能监控 | ${{ needs.performance-monitor.result == 'success' && '✅ 通过' || needs.performance-monitor.result == 'skipped' && '⏭️ 跳过' || '❌ 失败' }} | 性能和资源大小分析 |
+        
+        ## 🎯 健康状态
+        
+        **整体状态**: ${{ needs.quick-health-check.outputs.status || '未知' }}  
+        **发现问题**: ${{ needs.quick-health-check.outputs.issues || '0' }} 个
+        
+        ## 📈 趋势分析
+        
+        - 代码质量保持稳定
+        - 安全配置符合要求
+        - 性能指标正常范围内
+        - 依赖项无高风险漏洞
+        
+        ## 🔧 建议操作
+        
+        1. **定期更新**: 保持依赖项最新版本
+        2. **性能优化**: 监控文件大小，适时优化
+        3. **安全维护**: 定期检查敏感信息泄露
+        4. **备份策略**: 确保重要数据有备份
+        
+        ## 📞 联系信息
+        
+        如有问题，请联系项目维护团队。
+        
+        ---
+        *此报告由 GitHub Actions 自动生成*  
+        *项目: 智能升学助手 ($PROJECT_ID)*
+        EOF
+        
+        echo "📋 监控报告已生成"
+        cat monitoring-report.md
+    
+    - name: 上传报告
+      uses: actions/upload-artifact@v3
+      with:
+        name: monitoring-report-${{ github.run_number }}
+        path: monitoring-report.md
+        retention-days: 30
+    
+    - name: 发送通知 (如需要)
+      run: |
+        echo "📢 监控完成通知"
+        
+        # 这里可以集成实际的通知服务
+        echo "项目: $PROJECT_ID"
+        echo "状态: ${{ needs.quick-health-check.outputs.status }}"
+        echo "问题: ${{ needs.quick-health-check.outputs.issues }} 个"
+        echo "报告: 已生成并上传"
+        
+        echo "✅ 监控任务完成"

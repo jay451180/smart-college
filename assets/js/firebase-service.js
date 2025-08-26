@@ -131,24 +131,49 @@ class FirebaseService {
             console.error('❌ Firebase failed to load - checking script tags...');
             const firebaseScripts = document.querySelectorAll('script[src*="firebase"]');
             console.log('Firebase script tags found:', firebaseScripts.length);
-            throw new Error('Firebase failed to load within timeout');
+            
+            // Show detailed error information
+            firebaseScripts.forEach((script, index) => {
+                console.log(`Script ${index + 1}:`, script.src);
+                console.log(`Script loaded:`, script.readyState || 'unknown');
+            });
+            
+            throw new Error('Firebase SDK failed to load. Please check your internet connection and try refreshing the page.');
         }
         
         console.log('✅ Firebase object detected');
         
         // Check if required Firebase services are available
         const requiredServices = ['auth', 'firestore', 'storage', 'analytics'];
+        const availableServices = [];
         const missingServices = [];
         
         requiredServices.forEach(service => {
-            if (!firebase[service]) {
+            if (firebase[service]) {
+                availableServices.push(service);
+            } else {
                 missingServices.push(service);
             }
         });
         
+        console.log('✅ Available Firebase services:', availableServices);
         if (missingServices.length > 0) {
             console.warn('⚠️ Missing Firebase services:', missingServices);
         }
+        
+        // Validate Firebase configuration
+        if (!this.config?.config) {
+            throw new Error('Firebase configuration is missing');
+        }
+        
+        const requiredConfigKeys = ['apiKey', 'authDomain', 'projectId'];
+        const missingConfigKeys = requiredConfigKeys.filter(key => !this.config.config[key]);
+        
+        if (missingConfigKeys.length > 0) {
+            throw new Error(`Missing Firebase config keys: ${missingConfigKeys.join(', ')}`);
+        }
+        
+        console.log('✅ Firebase configuration validated');
     }
 
     /**
@@ -387,22 +412,36 @@ class FirebaseService {
      * Show main interface
      */
     showMainInterface() {
-        const loginInterface = document.getElementById('loginInterface');
-        const mainInterface = document.getElementById('mainInterface');
+        const loginContainer = document.getElementById('loginContainer');
+        const careerContainer = document.getElementById('careerContainer');
+        const mainContainer = document.getElementById('mainContainer');
         
-        if (loginInterface) loginInterface.style.display = 'none';
-        if (mainInterface) mainInterface.style.display = 'block';
+        if (loginContainer) loginContainer.style.display = 'none';
+        if (careerContainer) careerContainer.style.display = 'none';
+        if (mainContainer) mainContainer.style.display = 'flex';
+        
+        // Update user avatar
+        if (typeof window.updateUserAvatar === 'function') {
+            window.updateUserAvatar(this.getCurrentUser());
+        }
     }
 
     /**
      * Show login interface
      */
     showLoginInterface() {
-        const loginInterface = document.getElementById('loginInterface');
-        const mainInterface = document.getElementById('mainInterface');
+        const loginContainer = document.getElementById('loginContainer');
+        const careerContainer = document.getElementById('careerContainer');
+        const mainContainer = document.getElementById('mainContainer');
         
-        if (mainInterface) mainInterface.style.display = 'none';
-        if (loginInterface) loginInterface.style.display = 'block';
+        if (mainContainer) mainContainer.style.display = 'none';
+        if (careerContainer) careerContainer.style.display = 'none';
+        if (loginContainer) loginContainer.style.display = 'flex';
+        
+        // Hide user avatar
+        if (typeof window.updateUserAvatar === 'function') {
+            window.updateUserAvatar(null);
+        }
     }
 
     /**

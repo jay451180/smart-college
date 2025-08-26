@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase 诊断测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #007bff;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔥 Firebase 诊断测试</h1>
+        <div id="status">正在初始化...</div>
+        
+        <h2>📋 测试结果</h2>
+        <div id="results"></div>
+        
+        <h2>🔍 详细日志</h2>
+        <div id="logs"></div>
+        
+        <h2>🧪 测试操作</h2>
+        <button onclick="testGoogleLogin()">测试Google登录</button>
+        <button onclick="testAnonymousLogin()">测试匿名登录</button>
+        <button onclick="testEmailLogin()">测试邮箱登录</button>
+        <button onclick="clearLogs()">清空日志</button>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+
+    <!-- Configuration -->
+    <script src="config.js"></script>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const logsDiv = document.getElementById('logs');
+        
+        let testResults = [];
+        let logs = [];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            logs.push({message: logEntry, type});
+            
+            const logElement = document.createElement('div');
+            logElement.className = `log-entry ${type}`;
+            logElement.textContent = logEntry;
+            logsDiv.appendChild(logElement);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            
+            console.log(logEntry);
+        }
+
+        function addResult(test, status, details = '') {
+            testResults.push({test, status, details});
+            updateResults();
+        }
+
+        function updateResults() {
+            resultsDiv.innerHTML = '';
+            testResults.forEach(result => {
+                const div = document.createElement('div');
+                div.className = `status ${result.status}`;
+                div.innerHTML = `<strong>${result.test}:</strong> ${result.status.toUpperCase()}${result.details ? '<br>' + result.details : ''}`;
+                resultsDiv.appendChild(div);
+            });
+        }
+
+        function clearLogs() {
+            logs = [];
+            logsDiv.innerHTML = '';
+        }
+
+        // Firebase 配置测试
+        async function runFirebaseTests() {
+            addLog('🔥 开始Firebase诊断测试', 'info');
+            
+            // 测试1: 检查配置
+            addLog('📋 检查Firebase配置...', 'info');
+            if (!window.CONFIG) {
+                addResult('配置加载', 'error', 'CONFIG对象不存在');
+                return;
+            }
+            
+            if (!window.CONFIG.firebase) {
+                addResult('Firebase配置', 'error', 'Firebase配置不存在');
+                return;
+            }
+            
+            if (!window.CONFIG.firebase.enabled) {
+                addResult('Firebase启用状态', 'warning', 'Firebase在配置中被禁用');
+                return;
+            }
+            
+            addResult('配置检查', 'success', 'Firebase配置正常');
+            addLog('✅ Firebase配置检查通过', 'success');
+            
+            // 测试2: 检查SDK加载
+            addLog('📦 检查Firebase SDK加载...', 'info');
+            let attempts = 0;
+            while (typeof firebase === 'undefined' && attempts < 50) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            if (typeof firebase === 'undefined') {
+                addResult('SDK加载', 'error', 'Firebase SDK未能加载');
+                addLog('❌ Firebase SDK加载失败', 'error');
+                
+                // 检查脚本标签
+                const scripts = document.querySelectorAll('script[src*="firebase"]');
+                addLog(`发现${scripts.length}个Firebase脚本标签`, 'info');
+                scripts.forEach((script, i) => {
+                    addLog(`脚本${i+1}: ${script.src}`, 'info');
+                });
+                return;
+            }
+            
+            addResult('SDK加载', 'success', 'Firebase SDK加载成功');
+            addLog('✅ Firebase SDK加载成功', 'success');
+            
+            // 测试3: 检查Firebase服务
+            addLog('🔧 检查Firebase服务...', 'info');
+            const services = ['auth', 'firestore', 'storage', 'analytics'];
+            const availableServices = [];
+            const missingServices = [];
+            
+            services.forEach(service => {
+                if (firebase[service]) {
+                    availableServices.push(service);
+                } else {
+                    missingServices.push(service);
+                }
+            });
+            
+            addLog(`可用服务: ${availableServices.join(', ')}`, 'success');
+            if (missingServices.length > 0) {
+                addLog(`缺失服务: ${missingServices.join(', ')}`, 'warning');
+            }
+            
+            // 测试4: 初始化Firebase
+            addLog('🚀 尝试初始化Firebase...', 'info');
+            try {
+                const config = window.CONFIG.firebase.config;
+                
+                // 验证必需的配置键
+                const requiredKeys = ['apiKey', 'authDomain', 'projectId'];
+                const missingKeys = requiredKeys.filter(key => !config[key]);
+                
+                if (missingKeys.length > 0) {
+                    addResult('配置验证', 'error', `缺失配置键: ${missingKeys.join(', ')}`);
+                    return;
+                }
+                
+                // 尝试初始化
+                let app;
+                if (firebase.apps.length > 0) {
+                    app = firebase.app();
+                    addLog('使用现有Firebase应用', 'info');
+                } else {
+                    app = firebase.initializeApp(config);
+                    addLog('创建新Firebase应用', 'success');
+                }
+                
+                // 测试Auth
+                const auth = firebase.auth();
+                addLog('Firebase Auth初始化成功', 'success');
+                
+                // 测试连接
+                addLog('测试Firebase连接...', 'info');
+                await new Promise((resolve, reject) => {
+                    const unsubscribe = auth.onAuthStateChanged(
+                        (user) => {
+                            addLog(`Auth状态: ${user ? '已登录' : '未登录'}`, 'info');
+                            unsubscribe();
+                            resolve();
+                        },
+                        (error) => {
+                            addLog(`Auth状态检查失败: ${error.message}`, 'error');
+                            unsubscribe();
+                            reject(error);
+                        }
+                    );
+                    
+                    // 超时保护
+                    setTimeout(() => {
+                        unsubscribe();
+                        resolve();
+                    }, 5000);
+                });
+                
+                addResult('Firebase初始化', 'success', 'Firebase初始化并连接成功');
+                addLog('🎉 Firebase初始化完全成功！', 'success');
+                
+                // 保存Firebase实例供测试使用
+                window.testFirebaseApp = app;
+                window.testFirebaseAuth = auth;
+                
+                statusDiv.innerHTML = '<div class="status success">✅ Firebase诊断完成 - 所有测试通过！</div>';
+                
+            } catch (error) {
+                addResult('Firebase初始化', 'error', error.message);
+                addLog(`❌ Firebase初始化失败: ${error.message}`, 'error');
+                statusDiv.innerHTML = '<div class="status error">❌ Firebase初始化失败</div>';
+            }
+        }
+
+        // 测试函数
+        async function testGoogleLogin() {
+            if (!window.testFirebaseAuth) {
+                addLog('❌ Firebase Auth未初始化，无法测试', 'error');
+                return;
+            }
+            
+            try {
+                addLog('🌐 开始测试Google登录...', 'info');
+                const provider = new firebase.auth.GoogleAuthProvider();
+                provider.addScope('email');
+                provider.addScope('profile');
+                
+                const result = await window.testFirebaseAuth.signInWithPopup(provider);
+                addLog(`✅ Google登录成功: ${result.user.email}`, 'success');
+                
+            } catch (error) {
+                addLog(`❌ Google登录失败: ${error.message}`, 'error');
+                if (error.code) {
+                    addLog(`错误代码: ${error.code}`, 'error');
+                }
+            }
+        }
+
+        async function testAnonymousLogin() {
+            if (!window.testFirebaseAuth) {
+                addLog('❌ Firebase Auth未初始化，无法测试', 'error');
+                return;
+            }
+            
+            try {
+                addLog('👤 开始测试匿名登录...', 'info');
+                const result = await window.testFirebaseAuth.signInAnonymously();
+                addLog(`✅ 匿名登录成功: ${result.user.uid}`, 'success');
+                
+            } catch (error) {
+                addLog(`❌ 匿名登录失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testEmailLogin() {
+            if (!window.testFirebaseAuth) {
+                addLog('❌ Firebase Auth未初始化，无法测试', 'error');
+                return;
+            }
+            
+            const email = prompt('请输入测试邮箱:');
+            const password = prompt('请输入密码:');
+            
+            if (!email || !password) {
+                addLog('❌ 测试取消', 'warning');
+                return;
+            }
+            
+            try {
+                addLog(`📧 开始测试邮箱登录: ${email}`, 'info');
+                const result = await window.testFirebaseAuth.signInWithEmailAndPassword(email, password);
+                addLog(`✅ 邮箱登录成功: ${result.user.email}`, 'success');
+                
+            } catch (error) {
+                addLog(`❌ 邮箱登录失败: ${error.message}`, 'error');
+                if (error.code === 'auth/user-not-found') {
+                    addLog('提示: 用户不存在，可能需要先注册', 'info');
+                } else if (error.code === 'auth/wrong-password') {
+                    addLog('提示: 密码错误', 'info');
+                }
+            }
+        }
+
+        // 页面加载时开始测试
+        window.addEventListener('load', () => {
+            setTimeout(runFirebaseTests, 1000);
+        });
+
+        // 捕获所有错误
+        window.addEventListener('error', (event) => {
+            addLog(`💥 全局错误: ${event.error?.message || event.message}`, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            addLog(`💥 未处理的Promise拒绝: ${event.reason}`, 'error');
+        });
+    </script>
+</body>
+</html>
