@@ -145,31 +145,41 @@ async function fallbackGoogleSignIn() {
 
 async function firebaseSignInAnonymously() {
     try {
-        if (!firebase.auth) {
-            throw new Error('Firebase Auth not available');
-        }
-        
         showNotificationMessage('正在启用访客模式...', 'info');
         
-        const result = await firebase.auth().signInAnonymously();
-        const user = result.user;
+        // 生成访客用户ID
+        const guestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         
-        console.log('访客登录成功:', user);
-        
-        // 保存访客信息
-        await saveUserToFirestore(user, true, { method: 'anonymous' });
-        
-        updateUserAvatar({
+        // 创建访客用户数据
+        const guestUserData = {
+            uid: guestId,
             displayName: '访客用户',
             email: 'guest@example.com',
             photoURL: null,
-            uid: user.uid
-        });
+            isAnonymous: true,
+            loginTime: new Date().toISOString(),
+            method: 'anonymous'
+        };
         
-        showNotificationMessage('访客模式已启用，功能受限', 'warning');
+        // 保存到本地存储
+        localStorage.setItem('userData', JSON.stringify(guestUserData));
+        localStorage.setItem('isGuest', 'true');
+        localStorage.setItem('currentUser', JSON.stringify(guestUserData));
         
-        // 跳转到职业选择界面
-        showCareer();
+        console.log('访客登录成功:', guestUserData);
+        
+        // 更新用户头像显示
+        updateUserAvatar(guestUserData);
+        
+        showNotificationMessage('访客模式已启用，欢迎体验！', 'success');
+        
+        // 显示访客模式功能限制提示
+        setTimeout(() => {
+            showNotificationMessage('访客模式：部分功能受限，建议注册获得完整体验', 'info');
+        }, 2000);
+        
+        // 直接跳转到主界面，跳过职业选择
+        showMain();
         
     } catch (error) {
         console.error('访客登录失败:', error);
@@ -257,6 +267,7 @@ function showMain() {
     // 添加动画效果
     setTimeout(() => {
         addScrollEffects();
+        initFlipCardAnimations();
         simulateDataLoading();
         initializeEnhancedChat();
     }, 100);
@@ -434,6 +445,7 @@ function toggleUserDropdown() {
 function updateUserAvatar(user) {
     const userAvatar = document.getElementById('userAvatar');
     const userInitials = document.getElementById('userInitials');
+    const userName = document.getElementById('userName');
     
     if (user && userAvatar && userInitials) {
         if (user.photoURL) {
@@ -448,6 +460,17 @@ function updateUserAvatar(user) {
         }
         userAvatar.style.display = 'flex';
         currentUser = user;
+        
+        // 为访客用户添加特殊标识
+        if (userName) {
+            if (user.isAnonymous) {
+                userName.textContent = '访客用户 👤';
+                userName.style.color = '#f59e0b';
+            } else {
+                userName.textContent = user.displayName || user.email || '用户';
+                userName.style.color = '';
+            }
+        }
     } else if (userAvatar) {
         userAvatar.style.display = 'none';
         currentUser = null;
@@ -465,47 +488,117 @@ function selectCareer(career) {
 function showFeature(feature) {
     // 隐藏所有功能模块
     const features = document.querySelectorAll('.feature-content');
-    features.forEach(f => f.classList.remove('active'));
+    features.forEach(f => {
+        f.classList.remove('active', 'closing');
+    });
     
     // 显示选中的功能模块
     const targetFeature = document.getElementById(feature + 'Feature');
     if (targetFeature) {
-        targetFeature.classList.add('active');
+        // 防止背景滚动
+        document.body.style.overflow = 'hidden';
+        
+        // 添加进入动画
+        setTimeout(() => {
+            targetFeature.classList.add('active');
+        }, 50); // 小延迟确保动画流畅
     }
 }
 
 function hideFeature() {
-    const features = document.querySelectorAll('.feature-content');
-    features.forEach(f => f.classList.remove('active'));
+    const activeFeature = document.querySelector('.feature-content.active');
+    if (activeFeature) {
+        // 添加退出动画
+        activeFeature.classList.add('closing');
+        
+        // 动画结束后移除元素
+        setTimeout(() => {
+            activeFeature.classList.remove('active', 'closing');
+            // 恢复背景滚动
+            document.body.style.overflow = 'auto';
+        }, 400); // 与CSS动画持续时间一致
+    }
 }
+
+// 处理功能模块背景点击事件
+function handleFeatureBackgroundClick(event) {
+    // 如果点击的是背景（不是内容区域），则关闭功能模块
+    if (event.target.classList.contains('feature-content')) {
+        hideFeature();
+    }
+}
+
+// ESC键关闭功能模块
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const activeFeature = document.querySelector('.feature-content.active');
+        if (activeFeature) {
+            hideFeature();
+        }
+    }
+});
 
 // 设置功能
 function showSettings() {
+    if (isGuestUser()) {
+        showNotificationMessage('访客模式：设置功能需要注册账户', 'warning');
+        return;
+    }
     showNotificationMessage('设置功能开发中...', 'info');
+}
+
+// 检查是否为访客用户
+function isGuestUser() {
+    return localStorage.getItem('isGuest') === 'true';
+}
+
+// 访客模式功能限制检查
+function checkGuestLimitations(featureName) {
+    if (isGuestUser()) {
+        showNotificationMessage(`访客模式：${featureName}功能需要注册账户`, 'warning');
+        return true;
+    }
+    return false;
 }
 
 // 用户菜单功能
 function showUserProfile() {
     const dropdown = document.getElementById('userDropdown');
     if (dropdown) dropdown.classList.remove('show');
+    
+    if (checkGuestLimitations('个人资料')) {
+        return;
+    }
     showNotificationMessage('个人资料功能开发中...', 'info');
 }
 
 function showUserSettings() {
     const dropdown = document.getElementById('userDropdown');
     if (dropdown) dropdown.classList.remove('show');
+    
+    if (checkGuestLimitations('账户设置')) {
+        return;
+    }
     showNotificationMessage('账户设置功能开发中...', 'info');
 }
 
 function showUserProgress() {
     const dropdown = document.getElementById('userDropdown');
     if (dropdown) dropdown.classList.remove('show');
+    
+    if (checkGuestLimitations('学习进度')) {
+        return;
+    }
     showNotificationMessage('学习进度功能开发中...', 'info');
 }
 
 function showUserBookmarks() {
     const dropdown = document.getElementById('userDropdown');
     if (dropdown) dropdown.classList.remove('show');
+    
+    if (checkGuestLimitations('我的收藏')) {
+        return;
+    }
     showNotificationMessage('我的收藏功能开发中...', 'info');
 }
 
@@ -522,12 +615,19 @@ async function handleLogout() {
     try {
         showNotificationMessage('正在退出登录...', 'info');
         
-        if (firebase.auth) {
+        // 检查是否为访客用户
+        const isGuest = localStorage.getItem('isGuest') === 'true';
+        
+        if (!isGuest && firebase.auth) {
             await firebase.auth().signOut();
         }
         
+        // 清除所有用户数据
         localStorage.removeItem('currentUser');
+        localStorage.removeItem('userData');
+        localStorage.removeItem('isGuest');
         localStorage.removeItem('rememberedEmail');
+        
         updateUserAvatar(null);
         showLogin();
         showNotificationMessage('已成功退出登录', 'success');
@@ -787,6 +887,20 @@ function closeNotificationSidebar() {
     const sidebar = document.getElementById('notificationSidebar');
     if (sidebar) {
         sidebar.style.display = 'none';
+    }
+}
+
+// 关闭单个通知卡片
+function closeNotificationCard(cardNumber) {
+    const card = document.getElementById(`notificationCard${cardNumber}`);
+    if (card) {
+        // 添加关闭动画类
+        card.classList.add('closing');
+        
+        // 动画结束后移除元素
+        setTimeout(() => {
+            card.style.display = 'none';
+        }, 600); // 与CSS动画持续时间一致
     }
 }
 
@@ -1367,6 +1481,38 @@ function addScrollEffects() {
     });
 }
 
+// 翻转卡片滚动动画
+function initFlipCardAnimations() {
+    const flipCards = document.querySelectorAll('.flip-card');
+    const introCards = document.querySelectorAll('.feature-intro-card');
+    
+    const observerOptions = {
+        threshold: 0.2,
+        rootMargin: '0px 0px -100px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry, index) => {
+            if (entry.isIntersecting) {
+                // 延迟显示每个卡片，创造依次出现的效果
+                setTimeout(() => {
+                    entry.target.classList.add('visible');
+                }, index * 200); // 每个卡片延迟200ms
+            }
+        });
+    }, observerOptions);
+
+    // 观察翻转卡片
+    flipCards.forEach(card => {
+        observer.observe(card);
+    });
+    
+    // 观察特色介绍卡片
+    introCards.forEach(card => {
+        observer.observe(card);
+    });
+}
+
 function simulateDataLoading() {
     const statNumbers = document.querySelectorAll('.stat-number');
     statNumbers.forEach((stat) => {
@@ -1392,6 +1538,22 @@ function simulateDataLoading() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Smart College Advisor main app initializing...');
     
+    // 检查访客状态
+    const isGuest = localStorage.getItem('isGuest') === 'true';
+    const userData = localStorage.getItem('userData');
+    
+    if (isGuest && userData) {
+        try {
+            const guestUserData = JSON.parse(userData);
+            updateUserAvatar(guestUserData);
+            showMain();
+            console.log('✅ 访客模式已恢复');
+            return;
+        } catch (error) {
+            console.error('访客数据解析失败:', error);
+        }
+    }
+    
     // 等待Firebase初始化完成（在firebase-simple.js中处理）
     setTimeout(() => {
         // 加载记住的邮箱
@@ -1399,6 +1561,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 初始化搜索功能
         initSearch();
+        
+        // 初始化公告AI功能
+        initAnnouncementAI();
         
         // 显示登录界面
         showLogin();
@@ -1580,6 +1745,472 @@ function viewAchievements() {
 
 // 将题库函数暴露到全局作用域
 window.showQuizMode = showQuizMode;
+
+// 公告AI功能
+let announcements = [];
+let announcementQaHistory = [];
+
+// 初始化公告AI功能
+function initAnnouncementAI() {
+    console.log('🤖 初始化公告AI功能...');
+    updateAnnouncementAIStatus('checking', '检查中...');
+    
+    // 立即检查AI服务是否已加载
+    if (window.AIService) {
+        if (!aiService) {
+            aiService = new window.AIService();
+            console.log('🤖 公告AI服务已初始化');
+        }
+        
+        // 检查AI服务状态
+        if (aiService && aiService.isAvailable) {
+            updateAnnouncementAIStatus('online', 'AI可用');
+        } else {
+            updateAnnouncementAIStatus('offline', 'AI不可用');
+        }
+    } else {
+        // 如果AI服务类未加载，等待加载
+        console.log('⏳ 等待AI服务类加载...');
+        const checkInterval = setInterval(() => {
+            if (window.AIService) {
+                clearInterval(checkInterval);
+                if (!aiService) {
+                    aiService = new window.AIService();
+                    console.log('🤖 公告AI服务已延迟初始化');
+                }
+                updateAnnouncementAIStatus('offline', 'AI不可用');
+            }
+        }, 100);
+        
+        // 5秒后停止检查
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            if (!window.AIService) {
+                updateAnnouncementAIStatus('offline', 'AI服务未加载');
+                console.error('❌ AI服务类加载超时');
+            }
+        }, 5000);
+    }
+}
+
+// 更新公告AI状态
+function updateAnnouncementAIStatus(status, text) {
+    const statusDot = document.getElementById('announcementAiStatus');
+    const statusText = document.getElementById('announcementAiText');
+    
+    if (statusDot && statusText) {
+        statusDot.className = `ai-status-dot ${status}`;
+        statusText.textContent = text;
+    }
+}
+
+// AI获取公告
+async function fetchAnnouncements() {
+    console.log('🤖 开始AI获取公告...');
+    updateAnnouncementAIStatus('checking', 'AI获取中...');
+    
+    try {
+        // 确保AI服务已初始化
+        if (!aiService) {
+            if (window.AIService) {
+                aiService = new window.AIService();
+                console.log('🤖 重新初始化AI服务');
+            } else {
+                throw new Error('AI服务类未加载');
+            }
+        }
+        
+        // 检查AI服务状态，如果不可用则尝试检查
+        if (!aiService.isAvailable) {
+            console.log('🔍 AI服务不可用，尝试检查状态...');
+            const isAvailable = await aiService.checkAPIStatus();
+            if (!isAvailable) {
+                throw new Error('AI服务不可用，请检查网络连接');
+            }
+        }
+        
+        // 构建获取公告的提示词
+        const prompt = `请帮我获取最新的学校招生公告信息，包括：
+1. 各大学招生政策变化
+2. 重要考试时间安排
+3. 录取分数线和要求
+4. 政策解读和分析
+
+请以JSON格式返回，包含以下字段：
+- title: 公告标题
+- type: 公告类型（admission/exam/enrollment/policy）
+- content: 公告内容
+- date: 发布日期
+- source: 信息来源
+
+请提供5-8条最新的真实公告信息。`;
+        
+        console.log('📤 发送AI请求获取公告...');
+        
+        // 调用AI服务
+        const response = await aiService.sendMessage(prompt);
+        
+        console.log('📥 AI响应:', response.substring(0, 200) + '...');
+        
+        // 解析AI返回的公告数据
+        const announcementsData = parseAnnouncementsFromAI(response);
+        
+        // 保存公告数据
+        announcements = announcementsData;
+        
+        // 显示公告
+        displayAnnouncements(announcements);
+        
+        updateAnnouncementAIStatus('online', 'AI获取完成');
+        showNotificationMessage('AI成功获取公告信息！', 'success');
+        
+    } catch (error) {
+        console.error('❌ AI获取公告失败:', error);
+        updateAnnouncementAIStatus('offline', '获取失败');
+        showNotificationMessage(`AI获取公告失败: ${error.message}`, 'error');
+        
+        // 显示模拟公告作为备用
+        showMockAnnouncements();
+    }
+}
+
+// 解析AI返回的公告数据
+function parseAnnouncementsFromAI(aiResponse) {
+    try {
+        // 尝试从AI响应中提取JSON数据
+        const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+        }
+        
+        // 如果无法解析JSON，生成模拟数据
+        return generateMockAnnouncements();
+    } catch (error) {
+        console.error('解析AI公告数据失败:', error);
+        return generateMockAnnouncements();
+    }
+}
+
+// 生成模拟公告数据
+function generateMockAnnouncements() {
+    return [
+        {
+            title: "2024年清华大学招生政策调整",
+            type: "admission",
+            content: "清华大学2024年招生政策有所调整，新增人工智能专业，录取分数线预计提高10-15分。同时推出新的奖学金政策，优秀学生可获得全额奖学金。",
+            date: "2024-01-15",
+            source: "清华大学招生办"
+        },
+        {
+            title: "2024年高考时间安排公布",
+            type: "exam",
+            content: "2024年高考将于6月7日-9日举行，具体安排：6月7日语文、数学；6月8日外语、物理/历史；6月9日化学、生物、政治、地理。请考生提前做好准备。",
+            date: "2024-01-10",
+            source: "教育部"
+        },
+        {
+            title: "北京大学2023年录取分数线",
+            type: "enrollment",
+            content: "北京大学2023年各省录取分数线已公布，理科最低分680分，文科最低分675分。热门专业如计算机科学、经济学等专业分数线更高。",
+            date: "2024-01-12",
+            source: "北京大学招生办"
+        },
+        {
+            title: "新高考政策解读",
+            type: "policy",
+            content: "新高考政策实施后，学生可根据兴趣和特长选择考试科目，不再局限于文理分科。这一政策有利于学生个性化发展，但也需要更科学的选科指导。",
+            date: "2024-01-08",
+            source: "教育部政策解读"
+        },
+        {
+            title: "复旦大学艺术类专业招生简章",
+            type: "admission",
+            content: "复旦大学2024年艺术类专业招生简章发布，包括音乐学、美术学、设计学等专业。报名时间：2月1日-2月28日，考试时间：3月15日-3月20日。",
+            date: "2024-01-14",
+            source: "复旦大学招生办"
+        }
+    ];
+}
+
+// 显示模拟公告
+function showMockAnnouncements() {
+    const mockAnnouncements = generateMockAnnouncements();
+    announcements = mockAnnouncements;
+    displayAnnouncements(announcements);
+    showNotificationMessage('显示模拟公告数据', 'info');
+}
+
+// 显示公告列表
+function displayAnnouncements(announcementsToShow) {
+    const announcementsList = document.getElementById('announcementsList');
+    if (!announcementsList) return;
+    
+    if (announcementsToShow.length === 0) {
+        announcementsList.innerHTML = `
+            <div class="announcement-placeholder">
+                <div class="placeholder-icon">📢</div>
+                <p>暂无公告信息</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const announcementsHTML = announcementsToShow.map(announcement => `
+        <div class="announcement-item ${announcement.type}">
+            <div class="announcement-header">
+                <h3 class="announcement-title">${announcement.title}</h3>
+                <div class="announcement-meta">
+                    <span class="announcement-type">${getTypeLabel(announcement.type)}</span>
+                    <span>${announcement.date}</span>
+                </div>
+            </div>
+            <div class="announcement-content">${announcement.content}</div>
+            <div class="announcement-actions">
+                <button class="btn btn-secondary btn-sm" onclick="askAboutAnnouncement('${announcement.title}')">🤖 询问AI</button>
+                <span class="announcement-source">来源：${announcement.source}</span>
+            </div>
+        </div>
+    `).join('');
+    
+    announcementsList.innerHTML = announcementsHTML;
+}
+
+// 获取类型标签
+function getTypeLabel(type) {
+    const labels = {
+        'admission': '招生政策',
+        'exam': '考试安排',
+        'enrollment': '录取信息',
+        'policy': '政策解读'
+    };
+    return labels[type] || '其他';
+}
+
+// 刷新公告
+function refreshAnnouncements() {
+    console.log('🔄 刷新公告...');
+    displayAnnouncements(announcements);
+    showNotificationMessage('公告已刷新', 'info');
+}
+
+// 过滤公告
+function filterAnnouncements() {
+    const filter = document.getElementById('announcementFilter').value;
+    let filteredAnnouncements = announcements;
+    
+    if (filter !== 'all') {
+        filteredAnnouncements = announcements.filter(announcement => announcement.type === filter);
+    }
+    
+    displayAnnouncements(filteredAnnouncements);
+}
+
+// 搜索公告
+function searchAnnouncements() {
+    const searchTerm = document.getElementById('announcementSearch').value.trim();
+    if (!searchTerm) {
+        displayAnnouncements(announcements);
+        return;
+    }
+    
+    const filteredAnnouncements = announcements.filter(announcement => 
+        announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        announcement.content.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    displayAnnouncements(filteredAnnouncements);
+    showNotificationMessage(`找到 ${filteredAnnouncements.length} 条相关公告`, 'info');
+}
+
+// 处理搜索输入
+function handleAnnouncementSearch(event) {
+    if (event.key === 'Enter') {
+        searchAnnouncements();
+    }
+}
+
+// 询问关于特定公告
+function askAboutAnnouncement(announcementTitle) {
+    const qaContainer = document.getElementById('announcementQa');
+    qaContainer.style.display = 'block';
+    
+    // 添加用户问题
+    addQaMessage('user', `我想了解关于"${announcementTitle}"的更多信息`);
+    
+    // 查找相关公告
+    const announcement = announcements.find(a => a.title === announcementTitle);
+    if (announcement) {
+        // 使用AI回答
+        answerAnnouncementQuestion(`关于"${announcementTitle}"的详细信息`, announcement);
+    }
+}
+
+// 发送问答消息
+function sendQaMessage() {
+    const qaInput = document.getElementById('qaInput');
+    const question = qaInput.value.trim();
+    
+    if (!question) return;
+    
+    // 添加用户消息
+    addQaMessage('user', question);
+    qaInput.value = '';
+    
+    // 使用AI回答
+    answerAnnouncementQuestion(question);
+}
+
+// 处理问答输入
+function handleQaInput(event) {
+    if (event.key === 'Enter') {
+        sendQaMessage();
+    }
+}
+
+// 添加问答消息
+function addQaMessage(role, content) {
+    const qaMessages = document.getElementById('qaMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `qa-message ${role}`;
+    messageDiv.textContent = content;
+    qaMessages.appendChild(messageDiv);
+    qaMessages.scrollTop = qaMessages.scrollHeight;
+    
+    // 保存到历史记录
+    announcementQaHistory.push({ role, content, timestamp: new Date() });
+}
+
+// AI回答公告问题
+async function answerAnnouncementQuestion(question, specificAnnouncement = null) {
+    try {
+        // 确保AI服务已初始化
+        if (!aiService) {
+            if (window.AIService) {
+                aiService = new window.AIService();
+                console.log('🤖 重新初始化AI服务用于问答');
+            } else {
+                addQaMessage('ai', '抱歉，AI服务暂时不可用，请稍后重试。');
+                return;
+            }
+        }
+        
+        // 检查AI服务状态
+        if (!aiService.isAvailable) {
+            console.log('🔍 AI服务不可用，尝试检查状态...');
+            const isAvailable = await aiService.checkAPIStatus();
+            if (!isAvailable) {
+                addQaMessage('ai', '抱歉，AI服务暂时不可用，请稍后重试。');
+                return;
+            }
+        }
+        
+        // 构建上下文
+        let context = '请基于以下学校公告信息回答问题：\n\n';
+        if (specificAnnouncement) {
+            context += `公告标题：${specificAnnouncement.title}\n`;
+            context += `公告内容：${specificAnnouncement.content}\n`;
+            context += `公告类型：${getTypeLabel(specificAnnouncement.type)}\n`;
+            context += `发布日期：${specificAnnouncement.date}\n`;
+        } else {
+            context += announcements.map(a => `- ${a.title}: ${a.content}`).join('\n');
+        }
+        
+        context += `\n\n用户问题：${question}\n\n请提供准确、详细的回答，只能基于上述公告信息回答，不要编造信息。`;
+        
+        console.log('📤 发送AI问答请求...');
+        
+        // 调用AI服务
+        const response = await aiService.sendMessage(question, context);
+        
+        console.log('📥 AI问答响应:', response.substring(0, 100) + '...');
+        
+        // 添加AI回答
+        addQaMessage('ai', response);
+        
+    } catch (error) {
+        console.error('AI回答失败:', error);
+        addQaMessage('ai', `抱歉，AI回答时出现错误: ${error.message}`);
+    }
+}
+
+// 关闭问答区域
+function closeAnnouncementQa() {
+    const qaContainer = document.getElementById('announcementQa');
+    qaContainer.style.display = 'none';
+}
+
+// 测试AI状态
+async function testAIStatus() {
+    console.log('🔍 测试AI状态...');
+    updateAnnouncementAIStatus('checking', '测试中...');
+    
+    // 详细调试信息
+    console.log('🔍 调试信息:', {
+        'window.AIService存在': !!window.AIService,
+        'aiService存在': !!aiService,
+        'aiService类型': typeof aiService,
+        'aiService.isAvailable': aiService ? aiService.isAvailable : 'N/A'
+    });
+    
+    try {
+        // 确保AI服务已初始化
+        if (!aiService) {
+            if (window.AIService) {
+                aiService = new window.AIService();
+                console.log('🤖 初始化AI服务用于测试');
+            } else {
+                throw new Error('AI服务类未加载 - window.AIService不存在');
+            }
+        }
+        
+        console.log('🤖 AI服务状态:', {
+            'isAvailable': aiService.isAvailable,
+            'apiUrl': aiService.apiUrl,
+            'deepseekApiUrl': aiService.deepseekApiUrl,
+            'apiKey长度': aiService.apiKey ? aiService.apiKey.length : 0,
+            'deepseekApiKey长度': aiService.deepseekApiKey ? aiService.deepseekApiKey.length : 0
+        });
+        
+        // 测试AI服务
+        const isAvailable = await aiService.checkAPIStatus();
+        
+        if (isAvailable) {
+            updateAnnouncementAIStatus('online', 'AI可用');
+            showNotificationMessage('AI服务测试成功！', 'success');
+            
+            // 测试简单对话
+            try {
+                const testResponse = await aiService.sendMessage('你好，请简单回复"测试成功"');
+                console.log('✅ AI测试对话成功:', testResponse);
+                showNotificationMessage('AI对话测试成功！', 'success');
+            } catch (error) {
+                console.error('❌ AI对话测试失败:', error);
+                showNotificationMessage('AI对话测试失败，但API连接正常', 'warning');
+            }
+        } else {
+            updateAnnouncementAIStatus('offline', 'AI不可用');
+            showNotificationMessage('AI服务测试失败', 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ AI状态测试失败:', error);
+        updateAnnouncementAIStatus('offline', '测试失败');
+        showNotificationMessage(`AI测试失败: ${error.message}`, 'error');
+    }
+}
+
+// 将公告函数暴露到全局作用域
+window.fetchAnnouncements = fetchAnnouncements;
+window.refreshAnnouncements = refreshAnnouncements;
+window.filterAnnouncements = filterAnnouncements;
+window.searchAnnouncements = searchAnnouncements;
+window.handleAnnouncementSearch = handleAnnouncementSearch;
+window.askAboutAnnouncement = askAboutAnnouncement;
+window.sendQaMessage = sendQaMessage;
+window.handleQaInput = handleQaInput;
+window.closeAnnouncementQa = closeAnnouncementQa;
+window.initAnnouncementAI = initAnnouncementAI;
+window.testAIStatus = testAIStatus;
 window.showProgress = showProgress;
 window.startRandomQuiz = startRandomQuiz;
 window.filterQuestions = filterQuestions;

@@ -1,9 +1,16 @@
 // AI服务 - 外部LLM API调用
 class AIService {
     constructor() {
+        // 2Brain API配置
         this.apiUrl = 'https://portal.2brain.ai/api/bot/chat/v1/chat/completions';
         this.apiKey = '2B-Gkl2EqlkO1xHAwnRkRIjEmd129zAKUKXLhlj5nO516jtl5xhmx';
+        
+        // DeepSeek API配置
+        this.deepseekApiUrl = 'https://api.deepseek.com/v1/chat/completions';
+        this.deepseekApiKey = 'sk-f5b3cdb79e3d4df8b48a9fc27fdeaf4d';
+        
         this.isAvailable = false;
+        this.deepseekAvailable = false;
         this.conversationHistory = [];
         this.currentLanguage = 'zh-CN';
         this.streamMode = true;
@@ -25,21 +32,49 @@ class AIService {
         console.log('✅ AI Service initialized in manual mode');
     }
     
-    // 检查API状态 - 参考Python示例（手动调用模式）
+    // 检查API状态 - 2Brain优先，DeepSeek备用
     async checkAPIStatus() {
-        // 添加确认提示，防止意外调用
-        console.log('⚠️ 注意：即将进行2brain API测试请求');
-        console.log('🔍 正在检查2brain API状态...');
+        console.log('⚠️ 注意：即将进行API测试请求');
+        console.log('🔍 正在检查API状态...');
         this.updateAPIStatus('checking', '检查中...');
         
+        // 同时检查两个API
+        const [twoBrainAvailable, deepseekAvailable] = await Promise.all([
+            this.checkTwoBrainAPI(),
+            this.checkDeepSeekAPI()
+        ]);
+        
+        // 更新总体状态
+        if (twoBrainAvailable) {
+            this.isAvailable = true;
+            this.updateAPIStatus('online', '2Brain可用');
+            console.log('✅ 主要API: 2Brain');
+            if (deepseekAvailable) {
+                console.log('✅ 备用API: DeepSeek');
+            } else {
+                console.log('❌ 备用API: DeepSeek不可用');
+            }
+        } else if (deepseekAvailable) {
+            this.isAvailable = true;
+            this.updateAPIStatus('online', 'DeepSeek可用');
+            console.log('✅ 主要API: DeepSeek (2Brain不可用)');
+        } else {
+            this.isAvailable = false;
+            this.updateAPIStatus('offline', 'API不可用');
+            console.log('❌ 所有API都不可用');
+        }
+        
+        return this.isAvailable;
+    }
+    
+    // 检查2Brain API
+    async checkTwoBrainAPI() {
         try {
-            // 按照Python示例的格式构建请求
+            console.log('🔍 检查2Brain API...');
             const testPayload = {
                 messages: [{ role: "user", content: "Hello" }],
-                stream: false  // 先用非流式测试连接
+                stream: false
             };
-            
-            console.log('📤 发送2brain API测试请求:', JSON.stringify(testPayload, null, 2));
             
             const response = await fetch(this.apiUrl, {
                 method: 'POST',
@@ -50,31 +85,54 @@ class AIService {
                 body: JSON.stringify(testPayload)
             });
             
-            console.log('📡 2brain API响应状态:', response.status, response.statusText);
+            if (response.status === 200) {
+                const data = await response.json();
+                if (data.choices && data.choices[0]) {
+                    console.log('✅ 2Brain API连接成功!');
+                    return true;
+                }
+            }
+            console.log('❌ 2Brain API连接失败:', response.status);
+            return false;
+        } catch (error) {
+            console.error('❌ 2Brain API测试异常:', error);
+            return false;
+        }
+    }
+    
+    // 检查DeepSeek API
+    async checkDeepSeekAPI() {
+        try {
+            console.log('🔍 检查DeepSeek API...');
+            const testPayload = {
+                model: "deepseek-chat",
+                messages: [{ role: "user", content: "Hello" }],
+                stream: false
+            };
+            
+            const response = await fetch(this.deepseekApiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.deepseekApiKey}`
+                },
+                body: JSON.stringify(testPayload)
+            });
             
             if (response.status === 200) {
                 const data = await response.json();
-                console.log('✅ 2brain API测试成功，响应数据:', data);
-                
-                // 检查响应格式是否符合预期
                 if (data.choices && data.choices[0]) {
-                    this.isAvailable = true;
-                    this.updateAPIStatus('online', '在线');
-                    console.log('✅ 2brain API完全可用');
+                    console.log('✅ DeepSeek API连接成功!');
+                    this.deepseekAvailable = true;
                     return true;
-                } else {
-                    console.warn('⚠️ 2brain API响应格式异常:', data);
-                    throw new Error('API响应格式不符合预期');
                 }
-            } else {
-                const errorData = await response.json().catch(() => response.text());
-                console.error('❌ 2brain API错误响应:', response.status, errorData);
-                throw new Error(`2brain API错误: ${response.status} - ${JSON.stringify(errorData)}`);
             }
+            console.log('❌ DeepSeek API连接失败:', response.status);
+            this.deepseekAvailable = false;
+            return false;
         } catch (error) {
-            console.error('❌ 2brain API状态检查失败:', error);
-            this.isAvailable = false;
-            this.updateAPIStatus('offline', '离线');
+            console.error('❌ DeepSeek API测试异常:', error);
+            this.deepseekAvailable = false;
             return false;
         }
     }
@@ -92,74 +150,122 @@ class AIService {
         }
         
         if (apiStatus) {
-            apiStatus.textContent = `API: ${text}`;
+            // 显示更详细的状态信息
+            let detailedText = `API: ${text}`;
+            if (this.deepseekAvailable) {
+                detailedText += ' + DeepSeek备用';
+            }
+            apiStatus.textContent = detailedText;
         }
     }
     
-    // 发送消息（支持流式输出）
+    // 发送消息（支持流式输出）- 2Brain优先，DeepSeek备用
     async sendMessage(message, context = '', onChunk = null) {
-        console.log('🚀 开始发送消息到2brain API...');
+        console.log('🚀 开始发送消息...');
         console.log('📝 用户消息:', message);
-        console.log('🔗 API端点:', this.apiUrl);
         
         if (!this.isAvailable) {
             console.log('⚠️ API标记为不可用，自动检查已禁用');
             throw new Error('AI服务不可用，请先手动点击"检查状态"按钮测试API连接');
         }
         
+        // 构建消息历史
+        const messages = this.buildMessageHistory(message, context);
+        
+        // 先尝试2Brain API
         try {
-            // 构建消息历史 - 按照Python示例格式
-            const messages = this.buildMessageHistory(message, context);
-            
-            // 严格按照Python示例的请求格式
-            const requestBody = {
-                messages: messages,
-                stream: this.streamMode  // 对应Python的stream: True
-            };
-            
-            console.log('📤 发送请求到2brain API (Python格式):', {
-                url: this.apiUrl,
-                messageCount: messages.length,
-                streamMode: this.streamMode,
-                payload: JSON.stringify(requestBody, null, 2)
-            });
-            
-            // 完全按照Python示例的headers格式
-            const response = await fetch(this.apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.apiKey}`
-                },
-                body: JSON.stringify(requestBody)
-            });
-            
-            console.log('📡 2brain API响应状态:', response.status, response.statusText);
-            
-            // 按照Python示例检查状态码
-            if (response.status === 200) {
-                if (this.streamMode) {
-                    console.log('⚡ 开始处理2brain流式响应 (对应Python iter_lines)...');
-                    return await this.handleStreamResponse(response, onChunk, message);
-                } else {
-                    console.log('📄 处理2brain普通响应...');
-                    return await this.handleNormalResponse(response, message);
-                }
-            } else {
-                // 对应Python的else分支
-                const errorData = await response.json().catch(() => response.text());
-                console.error('❌ 2brain API非200响应:', response.status, errorData);
-                throw new Error(`2brain API错误 (${response.status}): ${JSON.stringify(errorData)}`);
-            }
-            
+            console.log('🔍 尝试2Brain API...');
+            return await this.sendToTwoBrain(messages, onChunk, message);
         } catch (error) {
-            console.error('❌ 2brain API调用失败:', error);
+            console.log('❌ 2Brain API失败，尝试DeepSeek API...', error.message);
             
-            // 更新API状态
-            this.isAvailable = false;
-            this.updateAPIStatus('offline', '错误');
-            
-            throw error;
+            // 如果2Brain失败，尝试DeepSeek
+            try {
+                console.log('🔍 尝试DeepSeek API...');
+                return await this.sendToDeepSeek(messages, onChunk, message);
+            } catch (deepseekError) {
+                console.error('❌ 所有API都失败了:', deepseekError);
+                throw new Error('所有AI服务都不可用，请稍后重试');
+            }
+        }
+    }
+    
+    // 发送到2Brain API
+    async sendToTwoBrain(messages, onChunk, message) {
+        const requestBody = {
+            messages: messages,
+            stream: this.streamMode
+        };
+        
+        console.log('📤 发送请求到2Brain API:', {
+            url: this.apiUrl,
+            messageCount: messages.length,
+            streamMode: this.streamMode
+        });
+        
+        const response = await fetch(this.apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        console.log('📡 2Brain API响应状态:', response.status, response.statusText);
+        
+        if (response.status === 200) {
+            if (this.streamMode) {
+                console.log('⚡ 开始处理2Brain流式响应...');
+                return await this.handleStreamResponse(response, onChunk, message);
+            } else {
+                console.log('📄 处理2Brain普通响应...');
+                return await this.handleNormalResponse(response, message);
+            }
+        } else {
+            const errorData = await response.json().catch(() => response.text());
+            console.error('❌ 2Brain API错误:', response.status, errorData);
+            throw new Error(`2Brain API错误 (${response.status}): ${JSON.stringify(errorData)}`);
+        }
+    }
+    
+    // 发送到DeepSeek API
+    async sendToDeepSeek(messages, onChunk, message) {
+        const requestBody = {
+            model: "deepseek-chat",
+            messages: messages,
+            stream: this.streamMode
+        };
+        
+        console.log('📤 发送请求到DeepSeek API:', {
+            url: this.deepseekApiUrl,
+            messageCount: messages.length,
+            streamMode: this.streamMode
+        });
+        
+        const response = await fetch(this.deepseekApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.deepseekApiKey}`
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        console.log('📡 DeepSeek API响应状态:', response.status, response.statusText);
+        
+        if (response.status === 200) {
+            if (this.streamMode) {
+                console.log('⚡ 开始处理DeepSeek流式响应...');
+                return await this.handleStreamResponse(response, onChunk, message);
+            } else {
+                console.log('📄 处理DeepSeek普通响应...');
+                return await this.handleNormalResponse(response, message);
+            }
+        } else {
+            const errorData = await response.json().catch(() => response.text());
+            console.error('❌ DeepSeek API错误:', response.status, errorData);
+            throw new Error(`DeepSeek API错误 (${response.status}): ${JSON.stringify(errorData)}`);
         }
     }
     

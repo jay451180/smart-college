@@ -246,26 +246,90 @@
                     💡 提示：输入关键词如"计算机科学"、"清华大学"、"SAT数学"等
                 </p>
                 
-                <!-- Statistics -->
+                <!-- Statistics with Flip Cards -->
                 <div class="stats-container">
-                    <div class="stat-card">
-                        <div class="stat-number">50万+</div>
-                        <div class="stat-label">注册用户</div>
+                    <div class="flip-card" data-flip-type="scale">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <div class="stat-icon">👥</div>
+                            </div>
+                            <div class="flip-card-back">
+                                <div class="stat-number">50万+</div>
+                                <div class="stat-label">注册用户</div>
+                                <div class="stat-description">来自全球各地的学生选择我们</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number">3</div>
-                        <div class="stat-label">合作大学</div>
+                    
+                    <div class="flip-card" data-flip-type="scale">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <div class="stat-icon">🏫</div>
+                            </div>
+                            <div class="flip-card-back">
+                                <div class="stat-number">3</div>
+                                <div class="stat-label">合作大学</div>
+                                <div class="stat-description">与顶级大学建立战略合作关系</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number">98%</div>
-                        <div class="stat-label">用户满意度</div>
+                    
+                    <div class="flip-card" data-flip-type="flip">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <div class="stat-icon">⭐</div>
+                            </div>
+                            <div class="flip-card-back">
+                                <div class="stat-number">98%</div>
+                                <div class="stat-label">用户满意度</div>
+                                <div class="stat-description">用户对我们的服务高度认可</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number">100万+</div>
-                        <div class="stat-label">题库资源</div>
+                    
+                    <div class="flip-card" data-flip-type="scale">
+                        <div class="flip-card-inner">
+                            <div class="flip-card-front">
+                                <div class="stat-icon">📚</div>
+                            </div>
+                            <div class="flip-card-back">
+                                <div class="stat-number">100万+</div>
+                                <div class="stat-label">题库资源</div>
+                                <div class="stat-description">海量优质学习资源任您选择</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
+                <!-- 平台特色介绍 -->
+                <div class="features-intro-container">
+                    <h3 style="color: white; text-align: center; margin-bottom: 30px; font-size: 1.8rem;">
+                        🚀 为什么选择我们？
+                    </h3>
+                    <div class="features-intro-grid">
+                        <div class="feature-intro-card">
+                            <div class="feature-intro-icon">🤖</div>
+                            <h4>AI智能分析</h4>
+                            <p>基于大数据和机器学习算法，为您提供个性化的升学建议和规划方案</p>
+                        </div>
+                        <div class="feature-intro-card">
+                            <div class="feature-intro-icon">📊</div>
+                            <h4>数据驱动决策</h4>
+                            <p>通过分析历年录取数据和趋势，帮您做出最明智的申请决策</p>
+                        </div>
+                        <div class="feature-intro-card">
+                            <div class="feature-intro-icon">🎯</div>
+                            <h4>精准匹配</h4>
+                            <p>根据您的兴趣、能力和目标，精准匹配最适合的大学和专业</p>
+                        </div>
+                        <div class="feature-intro-card">
+                            <div class="feature-intro-icon">📚</div>
+                            <h4>丰富资源</h4>
+                            <p>提供海量题库、申请指导、文书模板等全方位学习资源</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Partner Universities -->
                 <div class="universities-container">
                     <h3 style="color: white; text-align: center; margin-bottom: 20px; font-size: 1.5rem;">
@@ -364,7 +428,7 @@
         
         <!-- Right Side Notification Banner -->
         <div class="notification-sidebar" id="notificationSidebar">
-            <div class="notification-card">
+            <div class="notification-card" id="notificationCard1">
                 <div class="notification-header">
                     <div class="notification-icon">🎉</div>
                     <div class="notification-title">欢迎</div>
@@ -372,10 +436,10 @@
                 <div class="notification-content">
                     欢迎来到Smart College Advisor！新用户可享受7天免费AI咨询服务
                 </div>
-                <button class="notification-close" onclick="closeNotificationSidebar()">×</button>
+                <button class="notification-close" onclick="closeNotificationCard(1)">×</button>
             </div>
             
-            <div class="notification-card">
+            <div class="notification-card" id="notificationCard2">
                 <div class="notification-header">
                     <div class="notification-icon">🚀</div>
                     <div class="notification-title">新功能</div>
@@ -383,9 +447,10 @@
                 <div class="notification-content">
                     AI智能助手全面升级，为您提供更精准的升学指导！
                 </div>
+                <button class="notification-close" onclick="closeNotificationCard(2)">×</button>
             </div>
             
-            <div class="notification-card">
+            <div class="notification-card" id="notificationCard3">
                 <div class="notification-header">
                     <div class="notification-icon">🎯</div>
                     <div class="notification-title">热门活动</div>
@@ -393,12 +458,14 @@
                 <div class="notification-content">
                     春季升学规划讲座即将开始，名额有限，立即报名！
                 </div>
+                <button class="notification-close" onclick="closeNotificationCard(3)">×</button>
             </div>
         </div>
 
         <!-- AI Assistant Feature Module -->
-        <div id="aiFeature" class="feature-content">
-            <button class="back-btn" onclick="hideFeature()">← 返回主页</button>
+        <div id="aiFeature" class="feature-content" onclick="handleFeatureBackgroundClick(event)">
+            <div class="feature-content-inner">
+                <button class="feature-close-btn" onclick="hideFeature()">×</button>
             
             <!-- AI助手头部区域 -->
             <div class="ai-header-section">
@@ -567,11 +634,13 @@
                     </div>
                 </div>
             </div>
+            </div>
         </div>
 
         <!-- Question Bank Feature Module -->
-        <div id="questionFeature" class="feature-content">
-            <button class="back-btn" onclick="hideFeature()">← 返回主页</button>
+        <div id="questionFeature" class="feature-content" onclick="handleFeatureBackgroundClick(event)">
+            <div class="feature-content-inner">
+                <button class="feature-close-btn" onclick="hideFeature()">×</button>
             <div class="feature-header">
                 <h2>📚 智能题库</h2>
                 <p>海量优质题目资源，涵盖各学科重点难点，助您高效备考</p>
@@ -914,10 +983,12 @@
                     </div>
                 </div>
             </div>
+            </div>
         </div>
 
-        <div id="strategyFeature" class="feature-content">
-            <button class="back-btn" onclick="hideFeature()">← 返回主页</button>
+        <div id="strategyFeature" class="feature-content" onclick="handleFeatureBackgroundClick(event)">
+            <div class="feature-content-inner">
+                <button class="feature-close-btn" onclick="hideFeature()">×</button>
             <div class="feature-header">
                 <h2>📊 申请策略</h2>
                 <p>科学的申请指导，帮您做出最佳选择</p>
@@ -1082,10 +1153,12 @@
                     </div>
                 </div>
             </div>
+            </div>
         </div>
 
-        <div id="resourceFeature" class="feature-content">
-            <button class="back-btn" onclick="hideFeature()">← 返回主页</button>
+        <div id="resourceFeature" class="feature-content" onclick="handleFeatureBackgroundClick(event)">
+            <div class="feature-content-inner">
+                <button class="feature-close-btn" onclick="hideFeature()">×</button>
             <div class="feature-header">
                 <h2>📖 学习资源</h2>
                 <p>丰富的学习材料和指导资源，支持您的学习成长</p>
@@ -1108,10 +1181,12 @@
                     <p>学习计划制定工具、时间管理工具、学习效果评估工具</p>
                 </div>
             </div>
+            </div>
         </div>
 
-        <div id="communityFeature" class="feature-content">
-            <button class="back-btn" onclick="hideFeature()">← 返回主页</button>
+        <div id="communityFeature" class="feature-content" onclick="handleFeatureBackgroundClick(event)">
+            <div class="feature-content-inner">
+                <button class="feature-close-btn" onclick="hideFeature()">×</button>
             <div class="feature-header">
                 <h2>👥 学习社区</h2>
                 <p>与志同道合的学习伙伴交流分享，共同进步成长</p>
@@ -1134,36 +1209,82 @@
                     <p>分享学习经验、备考心得、成功案例</p>
                 </div>
             </div>
-        </div>
-
-        <div id="announcementFeature" class="feature-content">
-            <button class="back-btn" onclick="hideFeature()">← 返回主页</button>
-            <div class="feature-header">
-                <h2>📢 院校公告</h2>
-                <p>及时了解各大院校招生政策和考试安排的重要信息</p>
-            </div>
-            <div class="feature-grid">
-                <div class="feature-item">
-                    <h3>📅 招生政策</h3>
-                    <p>各大学最新招生政策、专业设置变化、录取要求调整等重要信息</p>
-                </div>
-                <div class="feature-item">
-                    <h3>📝 考试安排</h3>
-                    <p>高考、自主招生、艺术类考试等重要考试的时间安排和注意事项</p>
-                </div>
-                <div class="feature-item">
-                    <h3>🎯 录取信息</h3>
-                    <p>各批次录取分数线、录取结果查询、补录信息等录取相关资讯</p>
-                </div>
-                <div class="feature-item">
-                    <h3>📋 政策解读</h3>
-                    <p>重要政策的详细解读和分析，帮助您理解政策要点和影响</p>
-                </div>
             </div>
         </div>
 
-        <div id="aboutFeature" class="feature-content">
-            <button class="back-btn" onclick="hideFeature()">← 返回主页</button>
+        <div id="announcementFeature" class="feature-content" onclick="handleFeatureBackgroundClick(event)">
+            <div class="feature-content-inner">
+                <button class="feature-close-btn" onclick="hideFeature()">×</button>
+                <div class="feature-header">
+                    <h2>📢 院校公告</h2>
+                    <p>AI智能获取和解读各大院校招生政策和考试安排的重要信息</p>
+                </div>
+                
+                <!-- AI公告控制面板 -->
+                <div class="announcement-controls">
+                    <div class="ai-status-panel">
+                        <div class="ai-status-indicator">
+                            <span class="ai-status-dot" id="announcementAiStatus"></span>
+                            <span class="ai-status-text" id="announcementAiText">AI状态检查中...</span>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="fetchAnnouncements()">🤖 AI获取公告</button>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshAnnouncements()">🔄 刷新</button>
+                        <button class="btn btn-warning btn-sm" onclick="testAIStatus()">🔍 测试AI</button>
+                    </div>
+                </div>
+                
+                <!-- 公告搜索和问答 -->
+                <div class="announcement-search">
+                    <div class="search-input-group">
+                        <input type="text" id="announcementSearch" placeholder="询问关于学校公告的问题..." 
+                               onkeypress="handleAnnouncementSearch(event)">
+                        <button class="btn btn-primary" onclick="searchAnnouncements()">🔍 搜索</button>
+                    </div>
+                </div>
+                
+                <!-- 公告列表 -->
+                <div class="announcements-container">
+                    <div class="announcements-header">
+                        <h3>📋 最新公告</h3>
+                        <div class="announcement-filters">
+                            <select id="announcementFilter" onchange="filterAnnouncements()">
+                                <option value="all">全部公告</option>
+                                <option value="admission">招生政策</option>
+                                <option value="exam">考试安排</option>
+                                <option value="enrollment">录取信息</option>
+                                <option value="policy">政策解读</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="announcements-list" id="announcementsList">
+                        <div class="announcement-placeholder">
+                            <div class="placeholder-icon">📢</div>
+                            <p>点击"AI获取公告"按钮获取最新学校公告信息</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- AI问答区域 -->
+                <div class="announcement-qa" id="announcementQa" style="display: none;">
+                    <div class="qa-header">
+                        <h3>🤖 AI公告助手</h3>
+                        <button class="btn btn-secondary btn-sm" onclick="closeAnnouncementQa()">关闭</button>
+                    </div>
+                    <div class="qa-messages" id="qaMessages">
+                        <!-- AI问答消息将在这里显示 -->
+                    </div>
+                    <div class="qa-input">
+                        <input type="text" id="qaInput" placeholder="询问关于公告的问题..." 
+                               onkeypress="handleQaInput(event)">
+                        <button class="btn btn-primary" onclick="sendQaMessage()">发送</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="aboutFeature" class="feature-content" onclick="handleFeatureBackgroundClick(event)">
+            <div class="feature-content-inner">
+                <button class="feature-close-btn" onclick="hideFeature()">×</button>
             <div class="feature-header">
                 <h2>ℹ️ 关于本站</h2>
                 <p>了解Smart College Advisor的使命、愿景和核心价值</p>
@@ -1185,6 +1306,7 @@
                     <h3>💡 创新理念</h3>
                     <p>不断创新服务模式，结合最新的教育理念和技术发展，为学生提供更好的服务体验</p>
                 </div>
+            </div>
             </div>
         </div>
     </div>
