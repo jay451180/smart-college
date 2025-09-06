@@ -32,7 +32,7 @@
     "type": "git",
     "url": "https://github.com/your-username/firebase-google-auth-web.git"
   },
-  "homepage": "https://your-app.netlify.app",
+  "homepage": "https://smartcollege810429.netlify.app",
   "dependencies": {},
   "browserslist": [
     "> 1%",

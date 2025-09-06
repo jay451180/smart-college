@@ -2,7 +2,7 @@
 class AIService {
     constructor() {
         this.apiUrl = 'https://portal.2brain.ai/api/bot/chat/v1/chat/completions';
-        this.apiKey = '2B-H2t9t16XwDlzNuBx5ymWzJJKUqwpC7ud4pphtiUqZy63idXDIg';
+        this.apiKey = '2B-Gkl2EqlkO1xHAwnRkRIjEmd129zAKUKXLhlj5nO516jtl5xhmx';
         this.isAvailable = false;
         this.conversationHistory = [];
         this.currentLanguage = 'zh-CN';

@@ -29,13 +29,13 @@ import {
 
 // Firebase 配置信息
 const firebaseConfig = {
-    apiKey: "AIzaSyBPeOp2JxbcLyFOdTlaPVaLcHs3c-UlDlU",
-    authDomain: "test-base-a7c4b.firebaseapp.com",
-    projectId: "test-base-a7c4b",
-    storageBucket: "test-base-a7c4b.firebasestorage.app",
-    messagingSenderId: "693148597675",
-    appId: "1:693148597675:web:b2f8572531db152d7866ee",
-    measurementId: "G-T65DZD1826"
+    apiKey: "AIzaSyAPjCKi9CWvivVVxANhugEz6AY3lpRBVec",
+    authDomain: "smart-college-cf2b1.firebaseapp.com",
+    projectId: "smart-college-cf2b1",
+    storageBucket: "smart-college-cf2b1.firebasestorage.app",
+    messagingSenderId: "445324851190",
+    appId: "1:445324851190:web:35ab87f493ec126265f9d7",
+    measurementId: "G-B5E2CB2L66"
 };
 
 // 初始化 Firebase
